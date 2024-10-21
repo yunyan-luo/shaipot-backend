@@ -1,0 +1,9 @@
+.vscode
+**/.vscode
+.DS_Store
+**/.DS_Store
+build
+mongodb
+node_modules
+config.json
+package-lock.json

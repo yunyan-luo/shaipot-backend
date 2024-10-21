@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mining Pool</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+
+        <div class="logo">
+            <img src="/shaicoin.png" alt="Shaicoin Logo">
+        </div>
+
+        <h1>Mining Pool Dashboard</h1>
+
+        <div class="pool-stats">
+            <h2>Total Pool Hashrate: <span id="total-hashrate">Loading...</span></h2>
+            <h2>Connected Miners: <span id="connected-miners">Loading...</span></h2>
+            <h2>Minimum Payout: <span id="minimum-payout">Loading...</span></h2>
+            <h2>Pool Fee: <span id="pool_fee">Loading...</span></h2>
+        </div>
+
+        <div class="miner-search">
+            <label for="miner-address">Enter Miner Address:</label>
+            <input type="text" id="miner-address" placeholder="Enter your address">
+            <button id="search-button">Search</button>
+        </div>
+
+        <div id="miner-data" style="display: none;">
+            <h3>Miner Hashrate: <span id="miner-hashrate">Loading...</span></h3>
+            <h3>Current Reward: <span id="miner-reward">Loading...</span></h3>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
