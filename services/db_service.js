@@ -164,7 +164,7 @@ const getMinersWithBalanceAbove = async (balanceThreshold) => {
 
 const calculatePoolHashrate = async (minerId = null) => {
     const currentTime = Date.now();
-    const timeWindow = 600
+    const timeWindow = (minerId != null) ? 1800 : 600
     const timeWindowInMs = timeWindow * 1000;
     const timeThreshold = new Date(currentTime - timeWindowInMs);
 

@@ -8,8 +8,8 @@ const maxRollingWindow = 10;
 const initializeKalmanFilter = () => {
     return {
         estimate: 0,
-        errorEstimate: 1,
-        measurementNoise: 2,
+        errorEstimate: 4,
+        measurementNoise: 1,
         processNoise: 1,
     };
 };
