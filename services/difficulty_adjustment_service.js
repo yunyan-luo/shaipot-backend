@@ -2,7 +2,7 @@ const submissionTimestamps = {};
 const kalmanFilters = {};
 const rollingSubmissionTimes = {};
 
-const targetRate = 22; // Target submission rate in seconds
+const targetRate = 42; // Target submission rate in seconds
 const maxRollingWindow = 10;
 
 const initializeKalmanFilter = () => {
