@@ -10,15 +10,19 @@ var block_data = null
 var gwss = null
 
 const getIpAddress = (ws) => {
-    const forwardedFor = ws.upgradeReq?.headers['x-forwarded-for'];
+    try {
+        const forwardedFor = ws.upgradeReq?.headers['x-forwarded-for'];
     
-    if (forwardedFor) {
-        const ip = forwardedFor.split(',')[0].trim();
-        return ip;
+        if (forwardedFor) {
+            const ip = forwardedFor.split(',')[0].trim();
+            return ip;
+        }
+        
+        const ip = ws._socket.remoteAddress;
+        return ip.replace(/^::ffff:/, '');
+    } catch {
+        return null
     }
-    
-    const ip = ws._socket.remoteAddress;
-    return ip.replace(/^::ffff:/, '');
 };
 
 const sendJobToWS = (ws) => {
@@ -77,12 +81,14 @@ const handleShareSubmission = async (data, ws) => {
 const banAndDisconnectIp = async (ws) => {
     try {
         const ipAddress = getIpAddress(ws);
-        await banIp(ipAddress);
-        gwss.clients.forEach((client) => {
-            if (getIpAddress(client) === ipAddress) {
-                client.close(1008, 'Bye.');
-            }
-        });
+        if(ipAddress) {
+            await banIp(ipAddress);
+            gwss.clients.forEach((client) => {
+                if (getIpAddress(client) === ipAddress) {
+                    client.close(1008, 'Bye.');
+                }
+            });
+        }
     } catch (error) {
         console.error(`Error banning and disconnecting IP ${ipAddress}:`, error);
     }
@@ -96,6 +102,11 @@ const startMiningService = async (port) => {
     gwss.on('connection', async (ws) => {
         const ipAddress = getIpAddress(ws);
         
+        if (ipAddress == null) {
+            ws.close(1008, 'Bye.');
+            return;
+        }
+
         if (await isIpBanned(ipAddress)) {
             ws.close(1008, 'Bye.');
             return;
