@@ -70,7 +70,7 @@ const handleShareSubmission = async (data, ws) => {
         blockHex: current_raw_block.blockhex
     }, ws, async () => {
         // if this fires we need to ban.
-        await banAndDisconnectIp(ws)
+        //await banAndDisconnectIp(ws)
     });
 
     await adjustDifficulty(miner_id, ws);
