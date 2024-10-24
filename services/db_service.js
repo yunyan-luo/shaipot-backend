@@ -264,6 +264,16 @@ const distributeRewards = async (rewardAmount, blockNonce, blockTime) => {
     }
 };
 
+const getBannedIps = async () => {
+    try {
+        const bannedIpsCollection = db.collection('banned_ips');
+        return await bannedIpsCollection.find({}).toArray();
+    } catch (error) {
+        console.error("Error retrieving banned IPs:", error);
+        throw error;
+    }
+};
+
 module.exports = {
     initDB,
     saveShare,
@@ -279,5 +289,7 @@ module.exports = {
 
     banIp,
     unbanIp,
-    isIpBanned
+    isIpBanned,
+
+    getBannedIps
 };
