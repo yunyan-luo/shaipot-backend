@@ -318,6 +318,21 @@ function satoshisToBitcoin(satoshis) {
     return `${integerPart.toString()}.${decimalPartStr}`;
 }
 
+async function getFeeRateInSatPerVByte(confirmationTarget = 6, wallet = null) {
+    try {
+        const feeEstimate = await rpcCall('estimatesmartfee', [confirmationTarget], wallet);
+        
+        if (feeEstimate.feerate) {
+            const feeRateSatsPerVByte = Math.ceil((feeEstimate.feerate * 1e8) / 1000);
+            return Math.max(feeRateSatsPerVByte / 1000, 1);
+        } else {
+            return 1;
+        }
+    } catch (error) {
+        return 1;
+    }
+}
+
 async function createAndSendTransaction(outputs, wallet = null, confirmationTarget = 6) {
     try {
         const formattedOutputs = {};
@@ -336,22 +351,14 @@ async function createAndSendTransaction(outputs, wallet = null, confirmationTarg
         }
 
         const rawTx = await rpcCall('createrawtransaction', [[], formattedOutputs], wallet);
+        const feeRateSatsPerVByte = await getFeeRateInSatPerVByte(confirmationTarget, wallet);
 
-        let feeRateSatsPerVByte;
-        try {
-            const feeEstimate = await rpcCall('estimatesmartfee', [confirmationTarget], wallet);
-            if (feeEstimate.feerate) {
-                feeRateSatsPerVByte = Math.ceil((feeEstimate.feerate * 1e8) / 1000);
-            } else {
-                feeRateSatsPerVByte = 1;
-            }
-        } catch (error) {
-            feeRateSatsPerVByte = 1;
-        }
+        const options = {
+            fee_rate: feeRateSatsPerVByte,
+            replaceable: false
+        };
 
-        const feeRateInBTCPerKB = (feeRateSatsPerVByte * 1000) / 1e8;
-
-        const fundedTx = await rpcCall('fundrawtransaction', [rawTx, { feeRate: feeRateInBTCPerKB }], wallet);
+        const fundedTx = await rpcCall('fundrawtransaction', [rawTx, options], wallet);
 
         const signedTx = await rpcCall('signrawtransactionwithwallet', [fundedTx.hex], wallet);
         const txId = await rpcCall('sendrawtransaction', [signedTx.hex], wallet);
