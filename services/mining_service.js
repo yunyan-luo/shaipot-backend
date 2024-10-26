@@ -64,6 +64,7 @@ const handleShareSubmission = async (data, ws) => {
         if(isValid) {
             ws.minerId = miner_id;
         } else {
+            // turn them into a frog
             ws.close(1008, 'Bye.');
             return;
         }
