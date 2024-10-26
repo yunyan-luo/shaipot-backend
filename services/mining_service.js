@@ -1,9 +1,17 @@
 const WebSocket = require('ws');
-const { processShare } = require('./share_processing_service');
 const { adjustDifficulty, minerLeft } = require('./difficulty_adjustment_service');
 const { generateJob, extractBlockHexToNBits } = require('./share_construction_service');
-const { initDB, banIp, isIpBanned } = require('./db_service');
+const { initDB, banIp, isIpBanned, saveShare } = require('./db_service');
 const shaicoin_service = require('./shaicoin_service')
+
+const { Worker } = require('worker_threads');
+const path = require('path');
+const numCPUs = require('os').cpus().length;
+
+const workerPool = new Array(numCPUs).fill(null).map(() => 
+    new Worker(path.join(__dirname, '../workers/share.js'))
+);
+var currentWorker = 0;
 
 var current_raw_block = null
 var block_data = null
@@ -49,33 +57,87 @@ const distributeJobs = () => {
 };
 
 const handleShareSubmission = async (data, ws) => {
-    const { miner_id, nonce, job_id, path } = data;
+    const { miner_id, nonce, job_id, path: minerPath } = data;
+
     if (!ws.minerId) {
-        var isValid = await shaicoin_service.validateAddress(miner_id)
+        var isValid = await shaicoin_service.validateAddress(miner_id);
         if(isValid) {
             ws.minerId = miner_id;
         } else {
-            // turn them into a frog
             ws.close(1008, 'Bye.');
-            return
+            return;
         }
     }
-    
-    await processShare({
-        minerId: miner_id,
-        nonce: nonce,
-        job_id: job_id,
-        path: path,
-        blockTarget: current_raw_block.expanded,
-        blockHex: current_raw_block.blockhex
-    }, ws, async () => {
-        // if this fires we need to ban.
-        //await banAndDisconnectIp(ws)
-    });
 
-    await adjustDifficulty(miner_id, ws);
+    if (ws.job && job_id !== ws.job.jobId) {
+        ws.send(JSON.stringify({ type: 'rejected', message: 'Job ID mismatch' }));
+        return;
+    }
 
-    sendJobToWS(ws)
+    ws.job.jobId = -1;
+
+    // Get next worker in round-robin fashion
+    const worker = workerPool[currentWorker];
+    currentWorker = (currentWorker + 1) % workerPool.length;
+
+    try {
+        const processSharePromise = new Promise((resolve, reject) => {
+            const messageHandler = async (result) => {
+                try {
+                    switch(result.type) {
+                        case 'block_found':
+                            await shaicoin_service.submitBlock(result.blockHexUpdated);
+                            break;
+                            
+                        case 'share_accepted':
+                            await saveShare(miner_id, result.share);
+                            ws.send(JSON.stringify({ type: 'accepted' }));
+                            break;
+                            
+                        case 'share_rejected':
+                            ws.send(JSON.stringify({ type: 'rejected' }));
+                            break;
+                        case 'error':
+                            //await banAndDisconnectIp(ws);
+                            break;
+                    }
+                    resolve();
+                } catch (error) {
+                    reject(error);
+                } finally {
+                    worker.off('message', messageHandler);
+                    worker.off('error', errorHandler);
+                }
+            };
+
+            const errorHandler = (error) => {
+                console.log(error)
+                worker.off('message', messageHandler);
+                worker.off('error', errorHandler);
+                reject(error);
+            };
+
+            worker.on('message', messageHandler);
+            worker.on('error', errorHandler);
+        });
+
+        worker.postMessage({
+            job: ws.job,
+            nonce,
+            path: minerPath,
+            blockTarget: current_raw_block.expanded,
+            blockHex: current_raw_block.blockhex
+        });
+
+        await processSharePromise;
+
+        await adjustDifficulty(miner_id, ws);
+
+        sendJobToWS(ws);
+    } catch (error) {
+        console.error('Error processing share:', error);
+        ws.send(JSON.stringify({ type: 'rejected' }));
+    }
 };
 
 const banAndDisconnectIp = async (ws) => {
