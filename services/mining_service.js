@@ -59,11 +59,11 @@ const distributeJobs = () => {
 const handleShareSubmission = async (data, ws) => {
     const { miner_id, nonce, job_id, path: minerPath } = data;
 
-    if(global.minersToBan.includes(miner_id)) {
-        // turn them into a frog
-        ws.close(1008, 'Bye.');
-        return;
-    }
+    // if(global.minersToBan.includes(miner_id)) {
+    //     // turn them into a frog
+    //     ws.close(1008, 'Bye.');
+    //     return;
+    // }
 
     if (!ws.minerId) {
         var isValid = await shaicoin_service.validateAddress(miner_id);

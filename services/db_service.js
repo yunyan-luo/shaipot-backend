@@ -108,8 +108,6 @@ const saveShare = async (minerId, share) => {
         });
     } catch (error) {
         if (error.code === 11000) {
-            console.error("Duplicate share hash detected:", share.hash);
-
             const currentTime = Date.now();
             const timeLimit = 10000;
 
@@ -125,9 +123,10 @@ const saveShare = async (minerId, share) => {
             duplicateShareTracker.set(minerId, timestamps);
 
             if (timestamps.length >= 20) {
-                if (!global.minersToBan.includes(minerId)) {
-                    global.minersToBan.push(minerId);
-                }
+                console.error("Duplicate share hash detected:", share.hash);
+                // if (!global.minersToBan.includes(minerId)) {
+                //     global.minersToBan.push(minerId);
+                // }
                 duplicateShareTracker.delete(minerId);
             }
         } else {
