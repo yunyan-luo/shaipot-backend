@@ -2,7 +2,7 @@ const submissionTimestamps = {};
 const kalmanFilters = {};
 const rollingSubmissionTimes = {};
 
-const targetRate = 300;
+const targetRate = 222;
 const maxRollingWindow = 10;
 
 const initializeKalmanFilter = () => {
