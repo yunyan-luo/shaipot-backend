@@ -124,9 +124,9 @@ const saveShare = async (minerId, share) => {
 
             if (timestamps.length >= 20) {
                 console.error("Duplicate share hash detected:", share.hash);
-                // if (!global.minersToBan.includes(minerId)) {
-                //     global.minersToBan.push(minerId);
-                // }
+                if (!global.minersToBan.includes(minerId)) {
+                    global.minersToBan.push(minerId);
+                }
                 duplicateShareTracker.delete(minerId);
             }
         } else {
