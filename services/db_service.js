@@ -3,7 +3,7 @@ const { getDifficultyForShare, targetToNBits } = require('./nbits_service')
 
 let db;
 
-
+const duplicateShareTracker = new Map();
 
 const initDB = async () => {
     try {
@@ -86,7 +86,7 @@ const isIpBanned = async (ipAddress) => {
 const isTransactionProcessed = async (txid) => {
     const transactionsCollection = db.collection('transactions');
     const existingTransaction = await transactionsCollection.findOne({ txid });
-    return !!existingTransaction; // Return true if transaction exists
+    return !!existingTransaction;
 };
 
 const markTransactionAsProcessed = async (txid) => {
@@ -109,8 +109,26 @@ const saveShare = async (minerId, share) => {
     } catch (error) {
         if (error.code === 11000) {
             console.error("Duplicate share hash detected:", share.hash);
-            if(!global.minersToBan.includes(minerId)){
-                global.minersToBan.push(minerId)
+
+            const currentTime = Date.now();
+            const timeLimit = 10000;
+
+            if (!duplicateShareTracker.has(minerId)) {
+                duplicateShareTracker.set(minerId, []);
+            }
+
+            const timestamps = duplicateShareTracker.get(minerId).filter(
+                timestamp => currentTime - timestamp <= timeLimit
+            );
+
+            timestamps.push(currentTime);
+            duplicateShareTracker.set(minerId, timestamps);
+
+            if (timestamps.length >= 20) {
+                if (!global.minersToBan.includes(minerId)) {
+                    global.minersToBan.push(minerId);
+                }
+                duplicateShareTracker.delete(minerId);
             }
         } else {
             console.error("Error saving share:", error);
