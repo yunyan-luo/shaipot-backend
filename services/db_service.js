@@ -3,6 +3,8 @@ const { getDifficultyForShare, targetToNBits } = require('./nbits_service')
 
 let db;
 
+
+
 const initDB = async () => {
     try {
         const uri = 'mongodb://localhost:27017';
@@ -107,6 +109,9 @@ const saveShare = async (minerId, share) => {
     } catch (error) {
         if (error.code === 11000) {
             console.error("Duplicate share hash detected:", share.hash);
+            if(!global.minersToBan.includes(minerId)){
+                global.minersToBan.push(minerId)
+            }
         } else {
             console.error("Error saving share:", error);
         }
