@@ -78,3 +78,15 @@ app.get('/miner', async (req, res) => {
 app.listen(PORT, async () => {
     await startMiningService(pool_port);
 });
+
+
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    // Optionally exit or restart the process after logging
+});
+  
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection:', reason);
+    // Optionally exit or restart the process after logging
+});
+  
