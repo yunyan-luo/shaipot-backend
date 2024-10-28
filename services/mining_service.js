@@ -103,9 +103,11 @@ const handleShareSubmission = async (data, ws) => {
                             break;
                         case 'error':
                             isAFrog = true
-                            // turn them into a frog
-                            ws.close(1008, 'Bye.');
-                            break;
+                            // dont close but cool them off by
+                            // not sending a new share
+                            // // turn them into a frog
+                            // ws.close(1008, 'Bye.');
+                            // break;
                     }
                     resolve();
                 } catch (error) {

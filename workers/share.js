@@ -32,7 +32,7 @@ parentPort.on('message', (data) => {
             parentPort.postMessage({ type: 'share_rejected' });
         }
     } catch (error) {
-        console.log(error)
+        //console.log(error)
         parentPort.postMessage({ type: 'error' });
     }
 });
