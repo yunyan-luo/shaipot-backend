@@ -94,6 +94,47 @@ const markTransactionAsProcessed = async (txid) => {
     await transactionsCollection.insertOne({ txid, processedAt: new Date() });
 };
 
+// const saveShare = async (minerId, share) => {
+//     try {
+//         if (!minerId || !share || !share.hash) {
+//             throw new Error("Invalid minerId, share data, or missing hash");
+//         }
+//         const sharesCollection = db.collection('shares');
+
+//         await sharesCollection.insertOne({
+//             minerId,
+//             ...share,
+//             timestamp: new Date(),
+//         });
+//     } catch (error) {
+//         if (error.code === 11000) {
+//             const currentTime = Date.now();
+//             const timeLimit = 10000;
+
+//             if (!duplicateShareTracker.has(minerId)) {
+//                 duplicateShareTracker.set(minerId, []);
+//             }
+
+//             const timestamps = duplicateShareTracker.get(minerId).filter(
+//                 timestamp => currentTime - timestamp <= timeLimit
+//             );
+
+//             timestamps.push(currentTime);
+//             duplicateShareTracker.set(minerId, timestamps);
+
+//             if (timestamps.length >= 20) {
+//                 console.error("Duplicate share hash detected:", share.hash);
+//                 if (!global.minersToBan.includes(minerId)) {
+//                     global.minersToBan.push(minerId);
+//                 }
+//                 duplicateShareTracker.delete(minerId);
+//             }
+//         } else {
+//             console.error("Error saving share:", error);
+//         }
+//     }
+// };
+
 const saveShare = async (minerId, share) => {
     try {
         if (!minerId || !share || !share.hash) {
@@ -107,27 +148,33 @@ const saveShare = async (minerId, share) => {
             timestamp: new Date(),
         });
     } catch (error) {
-        if (error.code === 11000) {
+        if (error.code === 11000) { // Duplicate share hash
             const currentTime = Date.now();
             const timeLimit = 10000;
+            const maxDuplicates = 20;
 
+            // Initialize or retrieve timestamps array for the miner
             if (!duplicateShareTracker.has(minerId)) {
                 duplicateShareTracker.set(minerId, []);
             }
 
-            const timestamps = duplicateShareTracker.get(minerId).filter(
-                timestamp => currentTime - timestamp <= timeLimit
-            );
-
+            let timestamps = duplicateShareTracker.get(minerId);
+            // Remove outdated timestamps
+            timestamps = timestamps.filter(timestamp => currentTime - timestamp <= timeLimit);
+            
             timestamps.push(currentTime);
+
+            // Update tracker with cleaned-up timestamps
             duplicateShareTracker.set(minerId, timestamps);
 
-            if (timestamps.length >= 20) {
+            if (timestamps.length >= maxDuplicates) {
                 console.error("Duplicate share hash detected:", share.hash);
-                if (!global.minersToBan.includes(minerId)) {
-                    global.minersToBan.push(minerId);
+
+                // Use a Set for minersToBan to avoid duplicate entries
+                if (!global.minersToBan.has(minerId)) {
+                    global.minersToBan.add(minerId);
                 }
-                duplicateShareTracker.delete(minerId);
+                duplicateShareTracker.delete(minerId); // Clear entries after banning
             }
         } else {
             console.error("Error saving share:", error);
