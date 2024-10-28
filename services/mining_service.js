@@ -17,6 +17,8 @@ var current_raw_block = null
 var block_data = null
 var gwss = null
 
+const MAX_MESSAGE_SIZE = 10000
+
 const getIpAddress = (ws) => {
     try {
         const forwardedFor = ws.upgradeReq?.headers['x-forwarded-for'];
@@ -116,12 +118,18 @@ const handleShareSubmission = async (data, ws) => {
                     worker.off('error', errorHandler);
                 }
             };
-
+        
             const errorHandler = (error) => {
-                console.log(error)
-                worker.off('message', messageHandler);
-                worker.off('error', errorHandler);
-                reject(error);
+                try {
+                    worker.off('message', messageHandler);
+                    worker.off('error', errorHandler);
+                    reject(error);
+                } catch (error) {
+                    reject(error);
+                } finally {
+                    worker.off('message', messageHandler);
+                    worker.off('error', errorHandler);
+                }
             };
 
             worker.on('message', messageHandler);
@@ -166,7 +174,7 @@ const banAndDisconnectIp = async (ws) => {
 const startMiningService = async (port) => {
     await initDB();
 
-    gwss = new WebSocket.Server({ port });
+    gwss = new WebSocket.Server({ port, maxPayload: MAX_MESSAGE_SIZE });
     
     gwss.on('connection', async (ws) => {
         const ipAddress = getIpAddress(ws);
@@ -186,6 +194,11 @@ const startMiningService = async (port) => {
         global.totalMiners += 1;
 
         ws.on('message', async (message) => {
+            if (message.length > MAX_MESSAGE_SIZE) {
+                ws.close(1008, '');
+                return;
+            }
+            
             const data = JSON.parse(message);
             if (data.type === 'submit') {
                 await handleShareSubmission(data, ws);
