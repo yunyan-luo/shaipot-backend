@@ -3,7 +3,7 @@ const { getDifficultyForShare, targetToNBits } = require('./nbits_service')
 
 let db;
 
-const duplicateShareTracker = new Map();
+//const duplicateShareTracker = new Map();
 
 const initDB = async () => {
     try {
@@ -149,33 +149,33 @@ const saveShare = async (minerId, share) => {
         });
     } catch (error) {
         if (error.code === 11000) { // Duplicate share hash
-            const currentTime = Date.now();
-            const timeLimit = 10000;
-            const maxDuplicates = 20;
+            // const currentTime = Date.now();
+            // const timeLimit = 10000;
+            // const maxDuplicates = 20;
 
-            // Initialize or retrieve timestamps array for the miner
-            if (!duplicateShareTracker.has(minerId)) {
-                duplicateShareTracker.set(minerId, []);
-            }
+            // // Initialize or retrieve timestamps array for the miner
+            // if (!duplicateShareTracker.has(minerId)) {
+            //     duplicateShareTracker.set(minerId, []);
+            // }
 
-            let timestamps = duplicateShareTracker.get(minerId);
-            // Remove outdated timestamps
-            timestamps = timestamps.filter(timestamp => currentTime - timestamp <= timeLimit);
+            // let timestamps = duplicateShareTracker.get(minerId);
+            // // Remove outdated timestamps
+            // timestamps = timestamps.filter(timestamp => currentTime - timestamp <= timeLimit);
             
-            timestamps.push(currentTime);
+            // timestamps.push(currentTime);
 
-            // Update tracker with cleaned-up timestamps
-            duplicateShareTracker.set(minerId, timestamps);
+            // // Update tracker with cleaned-up timestamps
+            // duplicateShareTracker.set(minerId, timestamps);
 
-            if (timestamps.length >= maxDuplicates) {
-                console.error("Duplicate share hash detected:", share.hash);
+            // if (timestamps.length >= maxDuplicates) {
+            //     console.error("Duplicate share hash detected:", share.hash);
 
-                // Use a Set for minersToBan to avoid duplicate entries
-                if (!global.minersToBan.has(minerId)) {
-                    global.minersToBan.add(minerId);
-                }
-                duplicateShareTracker.delete(minerId); // Clear entries after banning
-            }
+            //     // Use a Set for minersToBan to avoid duplicate entries
+            //     if (!global.minersToBan.has(minerId)) {
+            //         global.minersToBan.add(minerId);
+            //     }
+            //     duplicateShareTracker.delete(minerId); // Clear entries after banning
+            // }
         } else {
             console.error("Error saving share:", error);
         }

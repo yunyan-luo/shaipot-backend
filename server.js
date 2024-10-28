@@ -1,6 +1,6 @@
 process.title = 'shaicoin_mining_pool'
 global.totalMiners = 0
-global.minersToBan = global.minersToBan || new Set();
+//global.minersToBan = global.minersToBan || new Set();
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
