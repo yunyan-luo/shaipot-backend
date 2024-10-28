@@ -83,6 +83,7 @@ const handleShareSubmission = async (data, ws) => {
     const worker = workerPool[currentWorker];
     currentWorker = (currentWorker + 1) % workerPool.length;
 
+    var isAFrog = false
     try {
         const processSharePromise = new Promise((resolve, reject) => {
             const messageHandler = async (result) => {
@@ -101,7 +102,10 @@ const handleShareSubmission = async (data, ws) => {
                             ws.send(JSON.stringify({ type: 'rejected' }));
                             break;
                         case 'error':
-                            //await banAndDisconnectIp(ws);
+                            isAFrog = true
+                            // turn them into a frog
+                            ws.close(1008, 'Bye.');
+                            return;
                             break;
                     }
                     resolve();
@@ -139,6 +143,10 @@ const handleShareSubmission = async (data, ws) => {
         });
 
         await processSharePromise;
+
+        if(isAFrog) {
+            return;
+        }
 
         await adjustDifficulty(miner_id, ws, `0x${current_raw_block.nbits}`);
 
