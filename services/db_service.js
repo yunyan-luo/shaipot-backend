@@ -281,32 +281,49 @@ const distributeRewards = async (rewardAmount, blockNonce, blockTime) => {
         const blockDifficulty = getDifficultyForShare(blockNonce);
         const maxCumulativeDifficulty = 2 * blockDifficulty;
         let cumulativeDifficulty = 0;
+        const batchSize = 1000;
 
         const sharesCollection = db.collection('shares');
-        const shares = await sharesCollection
-        .find({
-            timestamp: { $lte: new Date(blockTime * 1000) }
-        })
-        .sort({ timestamp: -1 })
-        .toArray();
-
-        if (!shares.length) {
-            return;
-        }
-
         let minerShareCounts = {};
-        for (const share of shares) {
-            const shareDifficulty = getDifficultyForShare(targetToNBits(share.target));
-            cumulativeDifficulty += shareDifficulty;
-            if (cumulativeDifficulty > maxCumulativeDifficulty) {
+        let skip = 0;
+
+        while (true) {
+            const shares = await sharesCollection
+                .find({
+                    timestamp: { $lte: new Date(blockTime * 1000) }
+                })
+                .sort({ timestamp: -1 })
+                .skip(skip)
+                .limit(batchSize)
+                .toArray();
+
+            if (!shares.length) {
                 break;
             }
 
-            const { minerId } = share;
-            if (!minerShareCounts[minerId]) {
-                minerShareCounts[minerId] = 0;
+            for (const share of shares) {
+                const shareDifficulty = getDifficultyForShare(targetToNBits(share.target));
+                cumulativeDifficulty += shareDifficulty;
+                if (cumulativeDifficulty > maxCumulativeDifficulty) {
+                    break;
+                }
+
+                const { minerId } = share;
+                if (!minerShareCounts[minerId]) {
+                    minerShareCounts[minerId] = 0;
+                }
+                minerShareCounts[minerId] += shareDifficulty;
             }
-            minerShareCounts[minerId] += shareDifficulty;
+
+            if (cumulativeDifficulty > maxCumulativeDifficulty || shares.length < batchSize) {
+                break;
+            }
+
+            skip += batchSize;
+        }
+
+        if (Object.keys(minerShareCounts).length === 0) {
+            return;
         }
 
         const totalReward = BigInt(rewardAmount);
