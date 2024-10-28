@@ -18,7 +18,7 @@ const initializeKalmanFilter = () => {
 
 const adjustDifficulty = async (minerId, ws, blockNBits) => {
     const blockDifficulty = getDifficultyForShare(blockNBits);
-    const maxAllowedDifficulty = Math.round(blockDifficulty / 3);
+    const maxAllowedDifficulty = Math.round(blockDifficulty / 4);
 
     const now = Date.now() / 1000;
 
