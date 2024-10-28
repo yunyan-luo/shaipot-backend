@@ -3,7 +3,26 @@ const kalmanFilters = {};
 const rollingSubmissionTimes = {};
 
 const targetRate = 300;
-const maxRollingWindow = 10;
+const maxRollingWindow = 5;
+
+const INACTIVITY_TIMEOUT = 10 * 60 * 1000;
+const lastActive = {};
+
+const updateLastActive = (minerId) => {
+    lastActive[minerId] = Date.now();
+};
+
+const cleanupInactiveMiners = () => {
+    const now = Date.now();
+    for (const minerId in lastActive) {
+        if (now - lastActive[minerId] > INACTIVITY_TIMEOUT) {
+            minerLeft(minerId);
+            delete lastActive[minerId];
+        }
+    }
+};
+
+setInterval(cleanupInactiveMiners, 3 * 60 * 1000);
 
 const initializeKalmanFilter = () => {
     return {
@@ -51,6 +70,7 @@ const adjustDifficulty = async (minerId, ws) => {
     currentDifficulty += error * 0.05;
     currentDifficulty = Math.max(currentDifficulty, 1);
     ws.difficulty = currentDifficulty;
+    updateLastActive(minerId)
 };
 
 const minerLeft = (minerId) => {

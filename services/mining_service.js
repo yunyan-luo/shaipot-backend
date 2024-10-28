@@ -182,6 +182,10 @@ const banAndDisconnectIp = async (ws) => {
     }
 };
 
+function isHexOrAlphabet(str) {
+    return /^[0-9a-fA-FA-Za-z]+$/.test(str);
+}
+
 const startMiningService = async (port) => {
     await initDB();
 
@@ -204,15 +208,47 @@ const startMiningService = async (port) => {
         sendJobToWS(ws)
         global.totalMiners += 1;
 
+        // ws.on('message', async (message) => {
+        //     if (message.length > MAX_MESSAGE_SIZE) {
+        //         ws.close(1008, '');
+        //         return;
+        //     }
+            
+        //     const data = JSON.parse(message);
+        //     if (data.type === 'submit') {
+        //         await handleShareSubmission(data, ws);
+        //     }
+        // });
+
         ws.on('message', async (message) => {
             if (message.length > MAX_MESSAGE_SIZE) {
-                ws.close(1008, '');
+                ws.close(1008, 'Message too large');
                 return;
             }
-            
-            const data = JSON.parse(message);
-            if (data.type === 'submit') {
-                await handleShareSubmission(data, ws);
+        
+            try {
+                const data = JSON.parse(message);
+                if (data.type === 'submit') {
+                    if (!isHexOrAlphabet(data.miner_id)) {
+                        ws.close(1008, 'Invalid data format');
+                        return;
+                    }
+                    if (!isHexOrAlphabet(data.nonce)) {
+                        ws.close(1008, 'Invalid data format');
+                        return;
+                    }
+                    if (!isHexOrAlphabet(data.job_id)) {
+                        ws.close(1008, 'Invalid data format');
+                        return;
+                    }
+                    if (!isHexOrAlphabet(data.path)) {
+                        ws.close(1008, 'Invalid data format');
+                        return;
+                    }                    
+                    await handleShareSubmission(data, ws);
+                }
+            } catch (err) {
+                ws.close(1003, 'Invalid JSON');
             }
         });
 

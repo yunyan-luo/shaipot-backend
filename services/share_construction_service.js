@@ -76,6 +76,9 @@ function getGridSize(hash) {
 }
 
 function constructShare(blockData, nonce, path) {
+    if(blockData.length > 10000) {
+        throw new Error('Invalid data');
+    }
     const USHRT_MAX = 65535;
     const NUM_NODES = 2008;
     const pathBuffer = Buffer.from(path, 'hex');
