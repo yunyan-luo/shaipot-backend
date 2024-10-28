@@ -105,7 +105,6 @@ const handleShareSubmission = async (data, ws) => {
                             isAFrog = true
                             // turn them into a frog
                             ws.close(1008, 'Bye.');
-                            return;
                             break;
                     }
                     resolve();
