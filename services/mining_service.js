@@ -6,7 +6,7 @@ const shaicoin_service = require('./shaicoin_service')
 
 const { Worker } = require('worker_threads');
 const path = require('path');
-const numCPUs = require('os').cpus().length;
+const numCPUs = require('os').cpus().length - 1;
 
 let workerPool = new Array(numCPUs).fill(null).map(() => 
     new Worker(path.join(__dirname, '../workers/share.js'))
@@ -58,26 +58,8 @@ const distributeJobs = () => {
     });
 };
 
-// const cleanupWorker = (worker) => {
-//     worker.removeAllListeners();
-//     worker.terminate();
-//     return new Worker(path.join(__dirname, '../workers/share.js'));
-// };
-
-// const reinitializeWorkerPool = () => {
-//     workerPool = workerPool.map((worker) => cleanupWorker(worker));
-// };
-
-// setInterval(reinitializeWorkerPool, 1000);
-
 const handleShareSubmission = async (data, ws) => {
     const { miner_id, nonce, job_id, path: minerPath } = data;
-
-    // if(global.minersToBan.has(miner_id)) {
-    //     // turn them into a frog
-    //     ws.close(1008, 'Bye.');
-    //     return;
-    // }
 
     if (!ws.minerId) {
         var isValid = await shaicoin_service.validateAddress(miner_id);
@@ -158,7 +140,7 @@ const handleShareSubmission = async (data, ws) => {
 
         await processSharePromise;
 
-        await adjustDifficulty(miner_id, ws);
+        await adjustDifficulty(miner_id, ws, `0x${current_raw_block.nbits}`);
 
         sendJobToWS(ws);
     } catch (error) {
@@ -208,18 +190,6 @@ const startMiningService = async (port) => {
         ws.difficulty = 1
         sendJobToWS(ws)
         global.totalMiners += 1;
-
-        // ws.on('message', async (message) => {
-        //     if (message.length > MAX_MESSAGE_SIZE) {
-        //         ws.close(1008, '');
-        //         return;
-        //     }
-            
-        //     const data = JSON.parse(message);
-        //     if (data.type === 'submit') {
-        //         await handleShareSubmission(data, ws);
-        //     }
-        // });
 
         ws.on('message', async (message) => {
             if (message.length > MAX_MESSAGE_SIZE) {

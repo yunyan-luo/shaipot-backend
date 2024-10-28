@@ -1,28 +1,11 @@
+const { getDifficultyForShare, targetToNBits } = require('./nbits_service');
+
 const submissionTimestamps = {};
 const kalmanFilters = {};
 const rollingSubmissionTimes = {};
 
-const targetRate = 300;
-const maxRollingWindow = 5;
-
-const INACTIVITY_TIMEOUT = 10 * 60 * 1000;
-const lastActive = {};
-
-const updateLastActive = (minerId) => {
-    lastActive[minerId] = Date.now();
-};
-
-const cleanupInactiveMiners = () => {
-    const now = Date.now();
-    for (const minerId in lastActive) {
-        if (now - lastActive[minerId] > INACTIVITY_TIMEOUT) {
-            minerLeft(minerId);
-            delete lastActive[minerId];
-        }
-    }
-};
-
-setInterval(cleanupInactiveMiners, 3 * 60 * 1000);
+const targetRate = 120;
+const maxRollingWindow = 10;
 
 const initializeKalmanFilter = () => {
     return {
@@ -33,7 +16,10 @@ const initializeKalmanFilter = () => {
     };
 };
 
-const adjustDifficulty = async (minerId, ws) => {
+const adjustDifficulty = async (minerId, ws, blockNBits) => {
+    const blockDifficulty = getDifficultyForShare(blockNBits);
+    const maxAllowedDifficulty = Math.round(blockDifficulty / 3);
+
     const now = Date.now() / 1000;
 
     if (!kalmanFilters[minerId]) {
@@ -68,9 +54,12 @@ const adjustDifficulty = async (minerId, ws) => {
     const error = targetRate - kalman.estimate;
     let currentDifficulty = ws.difficulty || 1.0;
     currentDifficulty += error * 0.05;
+
+    // Ensure difficulty doesn't exceed half of block difficulty
+    currentDifficulty = Math.min(currentDifficulty, maxAllowedDifficulty);
     currentDifficulty = Math.max(currentDifficulty, 1);
+
     ws.difficulty = currentDifficulty;
-    updateLastActive(minerId)
 };
 
 const minerLeft = (minerId) => {
