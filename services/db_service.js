@@ -30,17 +30,18 @@ const initDB = async () => {
         const bannedIpsCollection = db.collection('banned_ips');
         await bannedIpsCollection.createIndex({ ipAddress: 1 }, { unique: true });
 
+        deleteOldShares()
         setInterval(deleteOldShares, 24 * 60 * 60 * 1000);
     } catch (error) {
         console.error("Error initializing the database:", error);
     }
-};
+}
 
 const deleteOldShares = async () => {
     try {
         const sharesCollection = db.collection('shares');
-        const oneHourAgo = new Date(Date.now() - (60 * 60 * 1000));
-        const result = await sharesCollection.deleteMany({ timestamp: { $lt: oneHourAgo } });
+        const oneDayAgo = new Date(Date.now() - (24 * 60 * 60 * 1000));
+        const result = await sharesCollection.deleteMany({ timestamp: { $lt: oneDayAgo } });
         console.log(`${result.deletedCount} old shares deleted.`);
     } catch (error) {
         console.error("Error deleting old shares:", error);
