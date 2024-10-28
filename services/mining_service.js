@@ -8,7 +8,7 @@ const { Worker } = require('worker_threads');
 const path = require('path');
 const numCPUs = require('os').cpus().length;
 
-const workerPool = new Array(numCPUs).fill(null).map(() => 
+let workerPool = new Array(numCPUs).fill(null).map(() => 
     new Worker(path.join(__dirname, '../workers/share.js'))
 );
 var currentWorker = 0;
@@ -57,6 +57,17 @@ const distributeJobs = () => {
         sendJobToWS(ws)
     });
 };
+
+const cleanupWorker = (worker) => {
+    worker.removeAllListeners();
+    return new Worker(path.join(__dirname, '../workers/share.js'));
+};
+
+const reinitializeWorkerPool = () => {
+    workerPool = workerPool.map((worker) => cleanupWorker(worker));
+};
+
+setInterval(reinitializeWorkerPool, 1000);
 
 const handleShareSubmission = async (data, ws) => {
     const { miner_id, nonce, job_id, path: minerPath } = data;
