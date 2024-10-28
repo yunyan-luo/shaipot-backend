@@ -231,9 +231,9 @@ const getMinersWithBalanceAbove = async (balanceThreshold) => {
     }
 };
 
-const calculatePoolHashrate = async (minerId = null) => {
+const calculatePoolHashrate = async (minerId = null, batchSize = 1000) => {
     const currentTime = Date.now();
-    const timeWindow = (minerId != null) ? 1800 : 600
+    const timeWindow = (minerId != null) ? 1800 : 600;
     const timeWindowInMs = timeWindow * 1000;
     const timeThreshold = new Date(currentTime - timeWindowInMs);
 
@@ -242,31 +242,37 @@ const calculatePoolHashrate = async (minerId = null) => {
         query.minerId = minerId;
     }
 
-    const shares = await db.collection('shares')
-        .find(query)
-        .sort({ timestamp: 1 })
-        .toArray();
+    let totalWork = 0;
+    let firstShare = null;
+    let lastShare = null;
+    let skip = 0;
 
-    if (shares.length < 2) {
-        return 0;
+    while (true) {
+        const shares = await db.collection('shares')
+            .find(query)
+            .sort({ timestamp: 1 })
+            .skip(skip)
+            .limit(batchSize)
+            .toArray();
+
+        if (shares.length === 0) break;
+
+        if (!firstShare) firstShare = shares[0];
+        lastShare = shares[shares.length - 1];
+
+        shares.forEach((share) => {
+            totalWork += getDifficultyForShare(targetToNBits(share.target));
+        });
+ 
+        if (shares.length < batchSize) break;
+        skip += batchSize;
     }
 
-    const firstShare = shares[0];
-    const lastShare = shares[shares.length - 1];
-
-    let totalWork = 0;
-
-    shares.forEach((share) => {
-        totalWork += getDifficultyForShare(targetToNBits(share.target));
-    });
+    if (!firstShare || !lastShare) return 0;
 
     const timeDiff = (new Date(lastShare.timestamp) - new Date(firstShare.timestamp)) / 1000;
+    if (timeDiff <= 0) return 0;
 
-    if (timeDiff <= 0) {
-        return 0;
-    }
-
-    // Average work per second (hashrate)
     return (totalWork / timeDiff) * 512;
 };
 
