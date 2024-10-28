@@ -58,16 +58,17 @@ const distributeJobs = () => {
     });
 };
 
-const cleanupWorker = (worker) => {
-    worker.removeAllListeners();
-    return new Worker(path.join(__dirname, '../workers/share.js'));
-};
+// const cleanupWorker = (worker) => {
+//     worker.removeAllListeners();
+//     worker.terminate();
+//     return new Worker(path.join(__dirname, '../workers/share.js'));
+// };
 
-const reinitializeWorkerPool = () => {
-    workerPool = workerPool.map((worker) => cleanupWorker(worker));
-};
+// const reinitializeWorkerPool = () => {
+//     workerPool = workerPool.map((worker) => cleanupWorker(worker));
+// };
 
-setInterval(reinitializeWorkerPool, 1000);
+// setInterval(reinitializeWorkerPool, 1000);
 
 const handleShareSubmission = async (data, ws) => {
     const { miner_id, nonce, job_id, path: minerPath } = data;
@@ -257,6 +258,7 @@ const startMiningService = async (port) => {
                 minerLeft(ws.minerId)
             }
             global.totalMiners -= 1;
+            ws.removeAllListeners('message');
         });
     });
 
