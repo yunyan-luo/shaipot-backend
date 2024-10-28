@@ -102,14 +102,12 @@ function constructShare(blockData, nonce, path) {
 
     const hash1 = crypto.createHash('sha256').update(dataToHash).digest().reverse().toString('hex');
     const gridSize = getGridSize(hash1);
-    var graph = addon.generateGraph(hash1, gridSize);
+    const graph = addon.generateGraph(hash1, gridSize);
     const isValidCycle = verifyHamiltonianCycle(graph, pathArray);
 
     if (!isValidCycle) {
         throw new Error('Invalid Hamiltonian cycle');
     }
-
-    graph = null;
 
     const finalDataToHash = Buffer.concat([
         Buffer.from(blockData, 'hex'),
