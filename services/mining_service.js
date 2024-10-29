@@ -102,12 +102,12 @@ const handleShareSubmission = async (data, ws) => {
                             ws.send(JSON.stringify({ type: 'rejected' }));
                             break;
                         case 'error':
-                            isAFrog = true
+                            //isAFrog = true
                             // dont close but cool them off by
                             // not sending a new share
                             // // turn them into a frog
                             // ws.close(1008, 'Bye.');
-                            // break;
+                            break;
                     }
                     resolve();
                 } catch (error) {
