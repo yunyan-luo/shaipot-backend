@@ -10,7 +10,7 @@ const numCPUs = require('os').cpus().length - 1;
 
 let workerPool = new Array(numCPUs).fill(null).map(() => {
     const worker = new Worker(path.join(__dirname, '../workers/share.js'))
-    worker.setMaxListeners(20);
+    worker.setMaxListeners(1000)
     return worker;
 });
 var currentWorker = 0;
