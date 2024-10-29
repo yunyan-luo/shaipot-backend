@@ -8,9 +8,11 @@ const { Worker } = require('worker_threads');
 const path = require('path');
 const numCPUs = require('os').cpus().length - 1;
 
-let workerPool = new Array(numCPUs).fill(null).map(() => 
-    new Worker(path.join(__dirname, '../workers/share.js'))
-);
+let workerPool = new Array(numCPUs).fill(null).map(() => {
+    const worker = new Worker(path.join(__dirname, '../workers/share.js'))
+    worker.setMaxListeners(20);
+    return worker;
+});
 var currentWorker = 0;
 
 var current_raw_block = null
