@@ -284,9 +284,6 @@ const sendBalanceToMiners = async () => {
             });
 
             totalFeesCollected += feeAmount;
-
-            //console.log(`Sending ${finalPayout} satoshis to miner ${miner.minerId}`);
-            await updateMinerBalance(miner.minerId, 0);
         }
 
         if (totalFeesCollected > 0) {
@@ -298,8 +295,11 @@ const sendBalanceToMiners = async () => {
         }
 
         try {
-            //console.log(outputs);
             await createAndSendTransaction(outputs);
+
+            for(var i = 0, Length = outputs.length; i < Length; i++) {
+                await updateMinerBalance(outputs[i].address, 0);
+            }
         } catch (sendError) {
             console.error(`Error sending: ${sendError.message}`);
         }
