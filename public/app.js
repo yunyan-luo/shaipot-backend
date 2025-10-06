@@ -305,10 +305,10 @@ class MiningPoolDashboard {
     }
 
     startAutoUpdate() {
-        // Update pool data every 15 seconds
+        // Update pool data every 60 seconds
         this.updateInterval = setInterval(() => {
             this.updatePoolData();
-        }, 15000);
+        }, 60000);
     }
 
     stopAutoUpdate() {
