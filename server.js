@@ -6,12 +6,24 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { startMiningService } = require('./services/mining_service');
 const { calculatePoolHashrate, getMinerBalance } = require('./services/db_service');
-const { withdraw_threshold, fee_percentage_outof1000, pool_port, web_port, pool_mining_address } = require('./config.json')
+const { withdraw_threshold, fee_percentage_outof1000, pool_port, web_port, pool_mining_address, pool_connection } = require('./config.json')
 const app = express();
 const PORT = process.env.PORT || web_port;
 
 app.set('trust proxy', true);
 app.use(express.static('public'));
+
+// Add CORS headers
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
+    } else {
+        next();
+    }
+});
 
 const bannedIps = new Map();
 const BAN_DURATION = 10 * 60 * 1000;
@@ -45,12 +57,14 @@ app.use(rateLimit({
 app.get('/pool-stats', async (req, res) => {
     try {
         const totalHashrate = await calculatePoolHashrate();
+        const poolConnection = pool_connection ? `${pool_connection}${pool_port}` : 'Unset';
         const poolStats = {
             totalHashrate: `${(totalHashrate).toFixed(2)} H/s`,
             connectedMiners: global.totalMiners,
             minimumPayout: `${(withdraw_threshold / 100000000).toFixed(8)} SHA`,
             pool_fee: (fee_percentage_outof1000 / 1000) * 100,
-            poolMiningAddress: pool_mining_address
+            poolMiningAddress: pool_mining_address,
+            poolConnection: poolConnection
         };
         res.json(poolStats);
     } catch (error) {

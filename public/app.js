@@ -230,7 +230,8 @@ class MiningPoolDashboard {
             miners: document.getElementById('connected-miners'),
             payout: document.getElementById('minimum-payout'),
             fee: document.getElementById('pool_fee'),
-            poolAddress: document.getElementById('pool-mining-address')
+            poolAddress: document.getElementById('pool-mining-address'),
+            poolConnection: document.getElementById('pool-connection')
         };
 
         // Add loading states
@@ -280,6 +281,17 @@ class MiningPoolDashboard {
                 elements.poolAddress.textContent = data.poolMiningAddress;
                 elements.poolAddress.href = `https://blocks.shaicoin.com/address/${data.poolMiningAddress}`;
                 elements.poolAddress.classList.remove('loading');
+            }
+            
+            if (elements.poolConnection) {
+                const connectionValue = data.poolConnection || 'Unset';
+                elements.poolConnection.textContent = connectionValue;
+                if (connectionValue !== 'Unset') {
+                    elements.poolConnection.href = connectionValue;
+                } else {
+                    elements.poolConnection.href = '#';
+                }
+                elements.poolConnection.classList.remove('loading');
             }
             
         } catch (error) {
