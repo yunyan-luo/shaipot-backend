@@ -6,7 +6,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { startMiningService } = require('./services/mining_service');
 const { calculatePoolHashrate, getMinerBalance } = require('./services/db_service');
-const { withdraw_threshold, fee_percentage_outof1000, pool_port, web_port } = require('./config.json')
+const { withdraw_threshold, fee_percentage_outof1000, pool_port, web_port, pool_mining_address } = require('./config.json')
 const app = express();
 const PORT = process.env.PORT || web_port;
 
@@ -50,6 +50,7 @@ app.get('/pool-stats', async (req, res) => {
             connectedMiners: global.totalMiners,
             minimumPayout: `${(withdraw_threshold / 100000000).toFixed(8)} SHA`,
             pool_fee: (fee_percentage_outof1000 / 1000) * 100,
+            poolMiningAddress: pool_mining_address
         };
         res.json(poolStats);
     } catch (error) {
@@ -76,6 +77,7 @@ app.get('/miner', async (req, res) => {
 });
 
 app.listen(PORT, async () => {
+    console.log(`Web server is running on http://localhost:${PORT}`);
     await startMiningService(pool_port);
 });
 
