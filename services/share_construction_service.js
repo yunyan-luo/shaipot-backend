@@ -18,10 +18,18 @@ function extractBlockHexToNBits(blockData) {
 }
 
 function adjustTargetForDifficulty(difficulty) {
-    const maxTarget = new BN('000007fffff00000000000000000000000000000000000000000000000000000', 16);
-    const adjustedTarget = maxTarget.div(new BN(Math.round(difficulty)));
-    if (adjustedTarget.gt(maxTarget)) {
-        return maxTarget.toString(16).padStart(64, '0');
+    // Use custom start difficulty if provided via -s parameter, otherwise use maxTarget
+    let baseTarget;
+    if (global.customStartDiff) {
+        baseTarget = new BN(global.customStartDiff, 16);
+        console.log(`Using custom start difficulty: ${global.customStartDiff}`);
+    } else {
+        baseTarget = new BN('000007fffff00000000000000000000000000000000000000000000000000000', 16);
+    }
+    
+    const adjustedTarget = baseTarget.div(new BN(Math.round(difficulty)));
+    if (adjustedTarget.gt(baseTarget)) {
+        return baseTarget.toString(16).padStart(64, '0');
     }
 
     return adjustedTarget.toString(16).padStart(64, '0');

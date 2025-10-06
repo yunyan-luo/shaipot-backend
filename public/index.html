@@ -137,6 +137,37 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Recent Shares -->
+            <section class="shares-section">
+                <h2 class="section-title">
+                    <i class="fas fa-history"></i>
+                    Recent Shares
+                </h2>
+                <div class="shares-card">
+                    <div class="shares-header">
+                        <span class="shares-count">Latest <span id="shares-count">20</span> shares</span>
+                        <div class="shares-refresh">
+                            <i class="fas fa-sync-alt" id="shares-refresh-icon"></i>
+                            <span>Auto-refresh: 10s</span>
+                        </div>
+                    </div>
+                    <div class="shares-container">
+                        <div class="shares-table-header">
+                            <div class="share-col miner-col">Miner ID</div>
+                            <div class="share-col hash-col">Share Hash</div>
+                            <div class="share-col difficulty-col">Difficulty</div>
+                            <div class="share-col time-col">Time</div>
+                        </div>
+                        <div id="shares-list" class="shares-list">
+                            <div class="shares-loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span>Loading recent shares...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
 
         <!-- Footer -->

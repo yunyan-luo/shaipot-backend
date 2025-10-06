@@ -119,6 +119,169 @@ class DataFormatter {
         
         return `${num.toFixed(4)} SHAI`;
     }
+
+    static formatDifficulty(difficulty) {
+        if (!difficulty) return 'N/A';
+        
+        const num = parseFloat(difficulty);
+        if (isNaN(num)) return difficulty;
+        
+        if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
+        if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
+        if (num >= 1e3) return `${(num / 1e3).toFixed(2)}K`;
+        return num.toFixed(2);
+    }
+
+    static formatTime(timestamp) {
+        if (!timestamp) return 'N/A';
+        
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = now - date;
+        
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+        
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    }
+
+    static truncateHash(hash, length = 12) {
+        if (!hash) return 'N/A';
+        if (hash.length <= length) return hash;
+        return hash.substring(0, length) + '...';
+    }
+
+    static truncateAddress(address, startLength = 8, endLength = 6) {
+        if (!address) return 'N/A';
+        if (address.length <= startLength + endLength) return address;
+        return address.substring(0, startLength) + '...' + address.substring(address.length - endLength);
+    }
+}
+
+// Shares Manager
+class SharesManager {
+    constructor() {
+        this.updateInterval = null;
+        this.isLoading = false;
+        this.init();
+    }
+
+    init() {
+        this.startAutoUpdate();
+        this.updateShares();
+    }
+
+    async updateShares() {
+        if (this.isLoading) return;
+        
+        this.isLoading = true;
+        const sharesContainer = document.getElementById('shares-list');
+        const refreshIcon = document.getElementById('shares-refresh-icon');
+        
+        if (refreshIcon) {
+            refreshIcon.classList.add('spinning');
+        }
+
+        try {
+            const response = await fetch('/recent-shares?limit=20');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            this.displayShares(data || []);
+            
+        } catch (error) {
+            console.error('Error fetching shares:', error);
+            this.showSharesError();
+        } finally {
+            this.isLoading = false;
+            if (refreshIcon) {
+                setTimeout(() => {
+                    refreshIcon.classList.remove('spinning');
+                }, 500);
+            }
+        }
+    }
+
+    displayShares(shares) {
+        const sharesContainer = document.getElementById('shares-list');
+        const sharesCount = document.getElementById('shares-count');
+        
+        if (!sharesContainer) return;
+
+        if (shares.length === 0) {
+            sharesContainer.innerHTML = `
+                <div class="shares-empty">
+                    <i class="fas fa-cube"></i>
+                    <h3>No Recent Shares</h3>
+                    <p>No shares have been submitted recently. Start mining to see share records here.</p>
+                </div>
+            `;
+            if (sharesCount) sharesCount.textContent = '0 recent shares';
+            return;
+        }
+
+        if (sharesCount) {
+            sharesCount.textContent = `${shares.length} recent shares`;
+        }
+
+        const sharesHTML = shares.map(share => `
+            <div class="share-item">
+                <div class="share-col miner-col" data-label="Miner ID">
+                    <span class="miner-id" title="${share.minerId}">
+                        ${DataFormatter.truncateAddress(share.minerId)}
+                    </span>
+                </div>
+                <div class="share-col hash-col" data-label="Share Hash">
+                    <span class="share-hash" title="${share.hash}">
+                        ${DataFormatter.truncateHash(share.hash, 16)}
+                    </span>
+                </div>
+                <div class="share-col difficulty-col" data-label="Difficulty">
+                    <span class="share-difficulty">
+                        ${DataFormatter.formatDifficulty(share.difficulty)}
+                    </span>
+                </div>
+                <div class="share-col time-col" data-label="Time">
+                    <span class="share-time" title="${new Date(share.timestamp).toLocaleString()}">
+                        ${DataFormatter.formatTime(share.timestamp)}
+                    </span>
+                </div>
+            </div>
+        `).join('');
+
+        sharesContainer.innerHTML = sharesHTML;
+    }
+
+    showSharesError() {
+        const sharesContainer = document.getElementById('shares-list');
+        if (sharesContainer) {
+            sharesContainer.innerHTML = `
+                <div class="shares-empty">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error Loading Shares</h3>
+                    <p>Failed to load recent shares. Please check your connection and try again.</p>
+                </div>
+            `;
+        }
+    }
+
+    startAutoUpdate() {
+        // Update shares every 10 seconds (same as pool hash)
+        this.updateInterval = setInterval(() => {
+            this.updateShares();
+        }, 10000);
+    }
+
+    stopAutoUpdate() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+    }
 }
 
 // Mining Pool Dashboard
@@ -305,10 +468,10 @@ class MiningPoolDashboard {
     }
 
     startAutoUpdate() {
-        // Update pool data every 60 seconds
+        // Update pool data every 10 seconds (to match shares update frequency)
         this.updateInterval = setInterval(() => {
             this.updatePoolData();
-        }, 60000);
+        }, 10000);
     }
 
     stopAutoUpdate() {
@@ -370,6 +533,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize dashboard
     window.dashboard = new MiningPoolDashboard();
     
+    // Initialize shares manager with a small delay to avoid simultaneous requests
+    setTimeout(() => {
+        window.sharesManager = new SharesManager();
+    }, 1000);
+    
     // Add smooth scrolling for better UX
     document.documentElement.style.scrollBehavior = 'smooth';
 });
@@ -384,11 +552,24 @@ document.addEventListener('visibilitychange', () => {
             window.dashboard.updatePoolData();
         }
     }
+    
+    if (window.sharesManager) {
+        if (document.hidden) {
+            window.sharesManager.stopAutoUpdate();
+        } else {
+            window.sharesManager.startAutoUpdate();
+            window.sharesManager.updateShares();
+        }
+    }
 });
 
 // Handle window beforeunload to cleanup
 window.addEventListener('beforeunload', () => {
     if (window.dashboard) {
         window.dashboard.stopAutoUpdate();
+    }
+    
+    if (window.sharesManager) {
+        window.sharesManager.stopAutoUpdate();
     }
 });
