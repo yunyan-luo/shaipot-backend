@@ -113,6 +113,51 @@ function verifyHamiltonianCycle_V3(graph, path) {
         }
     }
 
+    if (!graph[path[n - 1]][path[0]]) {
+        console.log("V3: No final edge from last to first vertex", { from: path[n - 1], to: path[0] });
+        return false;
+    }
+
+    return true;
+}
+
+function verifyHamiltonianCycle_V3_withRestrict(graph, path) {
+    const n = graph.length;
+
+    if (path.length !== n) {
+        console.log("V3: Path size doesn't match graph size", { pathLength: path.length, graphSize: n });
+        return false;
+    }
+
+    if (path.length === 0) {
+        console.log("V3: Path is empty");
+        return false;
+    }
+
+    if (path[0] !== 0) {
+        console.log("V3: First vertex must be 0", { firstVertex: path[0] });
+        return false;
+    }
+
+    const USHRT_MAX = 65535;
+    if (path.includes(USHRT_MAX)) {
+        console.log("V3: Path contains USHRT_MAX values");
+        return false;
+    }
+
+    const verticesInPath = new Set(path);
+    if (verticesInPath.size !== n) {
+        console.log("V3: Path doesn't contain all vertices exactly once", { uniqueVertices: verticesInPath.size, expectedSize: n });
+        return false;
+    }
+
+    for (let i = 1; i < n; i++) {
+        if (!graph[path[i - 1]][path[i]]) {
+            console.log("V3: No edge exists", { from: path[i - 1], to: path[i], position: i });
+            return false;
+        }
+    }
+
     // NEW UPDATE: if there is  i<j and  graph[path[i-1]][path[j]] && graph[path[i]][path[j+1]] are connected and path[i]>path[j]，This is an invalid path
     // THIS POOL IS FOR THE NEXT UPDATE
     for (let i = 1; i < n - 1; ++i) {
@@ -316,7 +361,8 @@ function constructShareV2(blockData, nonce, path) {
     const queenBeeHash = crypto.createHash('sha256').update(finalBuffer).digest().reverse().toString('hex');
 
     const queenBeeGraph = addon.generateGraphV2(queenBeeHash, queen_bee_grid_size, 125);
-    const queenBeeValid = verifyHamiltonianCycle_V3(queenBeeGraph, queenBeeSolution);
+    // This is a trade off.
+    const queenBeeValid = verifyHamiltonianCycle_V3_withRestrict(queenBeeGraph, queenBeeSolution);
     if (!queenBeeValid) {
         console.log("V3 queen verify failed", { queen_bee_grid_size, first_four: queenBeeSolution.slice(0,4) });
         throw new Error('Invalid queen bee Hamiltonian cycle');
