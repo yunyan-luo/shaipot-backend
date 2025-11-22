@@ -24,7 +24,7 @@ function adjustTargetForDifficulty(difficulty) {
         baseTarget = new BN(global.customStartDiff, 16);
         console.log(`Using custom start difficulty: ${global.customStartDiff}`);
     } else {
-        baseTarget = new BN('000007fffff00000000000000000000000000000000000000000000000000000', 16);
+        baseTarget = new BN('007fffff00000000000000000000000000000000000000000000000000000000', 16);
     }
     
     const adjustedTarget = baseTarget.div(new BN(Math.round(difficulty)));
@@ -113,7 +113,7 @@ function verifyHamiltonianCycle_V3(graph, path) {
         }
     }
 
-    // NEW UPDATE:新增交叉边检测：若存在 i<j 使得 graph[path[i-1]][path[j]] 和 graph[path[i]][path[j+1]] 均连通且 path[i]>path[j]，则非规范路径
+    // NEW UPDATE: if there is  i<j and  graph[path[i-1]][path[j]] && graph[path[i]][path[j+1]] are connected and path[i]>path[j]，This is an invalid path
     // THIS POOL IS FOR THE NEXT UPDATE
     for (let i = 1; i < n - 1; ++i) {
         for (let j = i + 1; j < n - 1; ++j) {
