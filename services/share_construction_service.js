@@ -113,6 +113,21 @@ function verifyHamiltonianCycle_V3(graph, path) {
         }
     }
 
+    // NEW UPDATE:新增交叉边检测：若存在 i<j 使得 graph[path[i-1]][path[j]] 和 graph[path[i]][path[j+1]] 均连通且 path[i]>path[j]，则非规范路径
+    // THIS POOL IS FOR THE NEXT UPDATE
+    for (let i = 1; i < n - 1; ++i) {
+        for (let j = i + 1; j < n - 1; ++j) {
+            if (
+                graph[path[i - 1]][path[j]] &&
+                graph[path[i]][path[j + 1]] &&
+                path[i] > path[j]
+            ) {
+                console.log("V3: Found Invalid Path Reverse Edge", { i, j, path_i: path[i], path_j: path[j] });
+                return false;
+            }
+        }
+    }
+
     if (!graph[path[n - 1]][path[0]]) {
         console.log("V3: No final edge from last to first vertex", { from: path[n - 1], to: path[0] });
         return false;
