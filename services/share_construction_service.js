@@ -315,7 +315,7 @@ function constructShareV2(blockData, nonce, path) {
         }
     }
     
-    const workerValid = verifyHamiltonianCycle_V3(workerGraph, workerSolution);
+    const workerValid = verifyHamiltonianCycle_V3_withRestrict(workerGraph, workerSolution);
     if (!workerValid) {
         console.log("V3 worker verify failed", { 
             worker_grid_size, 
