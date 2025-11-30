@@ -160,15 +160,20 @@ function verifyHamiltonianCycle_V3_withRestrict(graph, path) {
 
     // NEW UPDATE: if there is  i<j and  graph[path[i-1]][path[j]] && graph[path[i]][path[j+1]] are connected and path[i]>path[j]，This is an invalid path
     // THIS POOL IS FOR THE NEXT UPDATE
-    for (let i = 1; i < n - 1; ++i) {
-        for (let j = i + 1; j < n - 1; ++j) {
-            if (
-                graph[path[i - 1]][path[j]] &&
-                graph[path[i]][path[j + 1]] &&
-                path[i] > path[j]
-            ) {
-                console.log("V3: Found Invalid Path Reverse Edge", { i, j, path_i: path[i], path_j: path[j] });
-                return false;
+    // 2-opt verification: ensure the path is in the ground state
+    for (let i = 0; i < n - 1; ++i) {
+        for (let j = i + 1; j < n; ++j) {
+            // The edges (path[i-1], path[i]), (path[j], path[j+1]) must exist
+            const i_next = (i + 1) % n;
+            const j_next = (j + 1) % n;
+
+            // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected
+            if (graph[path[i]][path[j]] && graph[path[i_next]][path[j_next]]) {
+                // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected, and path[i]>path[j], then this is an invalid path
+                if (path[j] < path[i_next]) {
+                    console.log("V3: Found non-ground-state path", { i, j, path_i: path[i], path_j: path[j] });
+                    return false;
+                }
             }
         }
     }
