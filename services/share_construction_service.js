@@ -24,7 +24,7 @@ function adjustTargetForDifficulty(difficulty) {
         baseTarget = new BN(global.customStartDiff, 16);
         console.log(`Using custom start difficulty: ${global.customStartDiff}`);
     } else {
-        baseTarget = new BN('007fffff00000000000000000000000000000000000000000000000000000000', 16);
+        baseTarget = new BN('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 16);
     }
     
     const adjustedTarget = baseTarget.div(new BN(Math.round(difficulty)));
