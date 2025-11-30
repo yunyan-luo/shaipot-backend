@@ -1,6 +1,6 @@
 {
     "rpc_url": "http://127.0.0.1:8710",
-    "rpc_username": "example_mining_address",
+    "rpc_username": "example_rpcusername",
     "rpc_password": "example_password",
     "pool_mining_address": "sh1qs4jvyp5r7ck0xf2ywyhcm3sn3ldzgvupmp0m8a",
     "pool_fee_address": "sh1qs4jvyp5r7ck0xf2ywyhcm3sn3ldzgvupmp0m8a",
