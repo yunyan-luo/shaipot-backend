@@ -211,121 +211,117 @@ const startMiningService = async (port) => {
             try {
                 const data = JSON.parse(message);
                 if (data.type === 'submit') {
-                    if (!isHexOrAlphabet(data.miner_id)) {
-                        // check if they have a . in their address
-                        // if so, check if the target is valid
-                        // if so, set their difficulty to the target
-                        // if not, turn them into a frog
-                        if (data.miner_id.includes('.')) {
-                            const parts = data.miner_id.split('.')
-                            const address = parts[0]
-                            const target = parts[1]
-                            
-                            if (!isHexOrAlphabet(address) || !isHexOrAlphabet(target)) {
-                                ws.close(1008, 'Invalid data format');
-                                return;
-                            }
-
-                            data.miner_id = address
-
-                            if (!ws.minerId) {
-                                var isValid = await shaicoin_service.validateAddress(data.miner_id);
-                                if(isValid) {
-                                    ws.minerId = data.miner_id;
-
-                                    // Calculate difficulty from target
-                                    // User provides a prefix of the target
-                                    // If target is 1f, it means 1f0000...
-                                    // If target is 007f, it means 007f0000...
-                                    // Max target allowed is 1f (which corresponds to 1f0000... in the top bits)
-                                    
-                                    const BN = require('bn.js');
-                                    
-                                    // 1. Normalize user input to lower case
-                                    const targetPrefix = target.toLowerCase();
-                                    
-                                    // 2. Check if the user input exceeds '1f' conceptually when padded
-                                    // The user says: "if this target is larger than 1f, e.g. 2f, then unify to 1f followed by all 0s"
-                                    // This implies we are comparing the prefix value.
-                                    // '1f' is the max prefix allowed.
-                                    
-                                    // We need to interpret the prefix.
-                                    // If user gives '2f', it's > '1f'.
-                                    // If user gives '007f', is it > '1f'? No.
-                                    // But '007f' should be treated as '007f...'
-                                    
-                                    // Let's use BN to compare the prefix directly? 
-                                    // No, '007f' as a number is > '1f'? Yes (127 > 31).
-                                    // Wait, '007f' hex string is 127. '1f' is 31.
-                                    // But in terms of target difficulty, 007f... is SMALLER than 1f... ?
-                                    // No, 007f... is smaller than 1f00...
-                                    // Wait, 007f is 7f. 1f is 1f.
-                                    // 007f00... starts with 00 byte.
-                                    // 1f00... starts with 1f byte.
-                                    // So 1f... is MUCH larger than 007f...
-                                    
-                                    // The user constraint "if > 1f" likely refers to the value of the target when fully expanded.
-                                    // Or maybe just the prefix string value?
-                                    // "if this target is larger than 1f, e.g. 2f"
-                                    // 2f > 1f.
-                                    // So if I pass 2f, it gets capped to 1f.
-                                    
-                                    // Let's pad the user string to the right to make it a full 64-char (256-bit) target.
-                                    // BUT we need to be careful about alignment.
-                                    // Does "1f" mean "0000...1f" or "1f00...00"?
-                                    // Standard mining: lower target = harder.
-                                    // Higher target = easier.
-                                    // Max target usually means minimum difficulty.
-                                    // User says "if target > 1f... unify to 1f".
-                                    // This implies 1f is the maximum allowed target (easiest allowed difficulty).
-                                    // Wait, if 1f is the MAX target, then you can't have anything easier than that.
-                                    // But usually pools want to set a minimum difficulty (maximum target).
-                                    // So maybe 1f is the limit.
-                                    
-                                    // User clarification: "If it is 1f, it is 1f00000000... If it is 007f, then it is 007f... padded."
-                                    // This confirms left-alignment (padding with 0s on the right).
-                                    
-                                    // User also said: "default is 007ffff" (if not defined).
-                                    // And "frontend diff calc wrong, default 007fff is min difficulty, should be fffffff full f".
-                                    // This means the base target for difficulty 1 is FFFFFF....
-                                    // So Difficulty = FFFFFF... / Target.
-                                    
-                                    // Let's implement the target construction first.
-                                    let paddedTargetStr = targetPrefix.padEnd(64, '0');
-                                    
-                                    // Max target allowed is 1f0000...
-                                    const maxTargetStr = '1f'.padEnd(64, '0');
-                                    const maxTargetBN = new BN(maxTargetStr, 16);
-                                    
-                                    let userTargetBN = new BN(paddedTargetStr, 16);
-                                    
-                                    if (userTargetBN.gt(maxTargetBN)) {
-                                        userTargetBN = maxTargetBN;
-                                    }
-                                    
-                                    // Calculate difficulty
-                                    // User said: "should be fffffff full f... then calculate this difficulty value"
-                                    // Standard formula: Difficulty = Difficulty_1_Target / Current_Target
-                                    // If Difficulty_1_Target is FFFFFF..., then Difficulty = FFFFF... / Current_Target.
-                                    
-                                    const diff1Target = new BN('f'.repeat(64), 16);
-                                    
-                                    let newDiff = diff1Target.div(userTargetBN).toNumber();
-                                    if (newDiff < 1) newDiff = 1;
-                                    
-                                    ws.difficulty = newDiff;
-                                    
-                                    sendJobToWS(ws);
-                                } else {
-                                    ws.close(1008, 'Bye.');
-                                    return;
-                                }
-                            }
-                        } else {
+                    // Check for address format first (including potential suffix)
+                    if (data.miner_id.includes('.')) {
+                        const parts = data.miner_id.split('.')
+                        const address = parts[0]
+                        const target = parts[1]
+                        
+                        if (!isHexOrAlphabet(address) || !isHexOrAlphabet(target)) {
                             ws.close(1008, 'Invalid data format');
                             return;
                         }
+
+                        data.miner_id = address
+
+                        if (!ws.minerId) {
+                            var isValid = await shaicoin_service.validateAddress(data.miner_id);
+                            if(isValid) {
+                                ws.minerId = data.miner_id;
+
+                                // Calculate difficulty from target
+                                // User provides a prefix of the target
+                                // If target is 1f, it means 1f0000...
+                                // If target is 007f, it means 007f0000...
+                                // Max target allowed is 1f (which corresponds to 1f0000... in the top bits)
+                                
+                                const BN = require('bn.js');
+                                
+                                // 1. Normalize user input to lower case
+                                const targetPrefix = target.toLowerCase();
+                                
+                                // 2. Check if the user input exceeds '1f' conceptually when padded
+                                // The user says: "if this target is larger than 1f, e.g. 2f, then unify to 1f followed by all 0s"
+                                // This implies we are comparing the prefix value.
+                                // '1f' is the max prefix allowed.
+                                
+                                // We need to interpret the prefix.
+                                // If user gives '2f', it's > '1f'.
+                                // If user gives '007f', is it > '1f'? No.
+                                // But '007f' should be treated as '007f...'
+                                
+                                // Let's use BN to compare the prefix directly? 
+                                // No, '007f' as a number is > '1f'? Yes (127 > 31).
+                                // Wait, '007f' hex string is 127. '1f' is 31.
+                                // But in terms of target difficulty, 007f... is SMALLER than 1f... ?
+                                // No, 007f... is smaller than 1f00...
+                                // Wait, 007f is 7f. 1f is 1f.
+                                // 007f00... starts with 00 byte.
+                                // 1f00... starts with 1f byte.
+                                // So 1f... is MUCH larger than 007f...
+                                
+                                // The user constraint "if > 1f" likely refers to the value of the target when fully expanded.
+                                // Or maybe just the prefix string value?
+                                // "if this target is larger than 1f, e.g. 2f"
+                                // 2f > 1f.
+                                // So if I pass 2f, it gets capped to 1f.
+                                
+                                // Let's pad the user string to the right to make it a full 64-char (256-bit) target.
+                                // BUT we need to be careful about alignment.
+                                // Does "1f" mean "0000...1f" or "1f00...00"?
+                                // Standard mining: lower target = harder.
+                                // Higher target = easier.
+                                // Max target usually means minimum difficulty.
+                                // User says "if target > 1f... unify to 1f".
+                                // This implies 1f is the maximum allowed target (easiest allowed difficulty).
+                                // Wait, if 1f is the MAX target, then you can't have anything easier than that.
+                                // But usually pools want to set a minimum difficulty (maximum target).
+                                // So maybe 1f is the limit.
+                                
+                                // User clarification: "If it is 1f, it is 1f00000000... If it is 007f, then it is 007f... padded."
+                                // This confirms left-alignment (padding with 0s on the right).
+                                
+                                // User also said: "default is 007ffff" (if not defined).
+                                // And "frontend diff calc wrong, default 007fff is min difficulty, should be fffffff full f".
+                                // This means the base target for difficulty 1 is FFFFFF....
+                                // So Difficulty = FFFFFF... / Target.
+                                
+                                // Let's implement the target construction first.
+                                let paddedTargetStr = targetPrefix.padEnd(64, '0');
+                                
+                                // Max target allowed is 1f0000...
+                                const maxTargetStr = '1f'.padEnd(64, '0');
+                                const maxTargetBN = new BN(maxTargetStr, 16);
+                                
+                                let userTargetBN = new BN(paddedTargetStr, 16);
+                                
+                                if (userTargetBN.gt(maxTargetBN)) {
+                                    userTargetBN = maxTargetBN;
+                                }
+                                
+                                // Calculate difficulty
+                                // User said: "should be fffffff full f... then calculate this difficulty value"
+                                // Standard formula: Difficulty = Difficulty_1_Target / Current_Target
+                                // If Difficulty_1_Target is FFFFFF..., then Difficulty = FFFFF... / Current_Target.
+                                
+                                const diff1Target = new BN('f'.repeat(64), 16);
+                                
+                                let newDiff = diff1Target.div(userTargetBN).toNumber();
+                                if (newDiff < 1) newDiff = 1;
+                                
+                                ws.difficulty = newDiff;
+                                
+                                sendJobToWS(ws);
+                            } else {
+                                ws.close(1008, 'Bye.');
+                                return;
+                            }
+                        }
+                    } else if (!isHexOrAlphabet(data.miner_id)) {
+                        ws.close(1008, 'Invalid data format');
+                        return;
                     }
+
                     if (!isHexOrAlphabet(data.nonce)) {
                         ws.close(1008, 'Invalid data format');
                         return;
