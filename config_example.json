@@ -1,11 +1,12 @@
 {
     "rpc_url": "http://127.0.0.1:8710",
-    "rpc_username": "example_user",
+    "rpc_username": "example_rpcusername",
     "rpc_password": "example_password",
-    "pool_mining_address": "sh1qa2h68ph2293hahwhnwe6ryedac6xtggvunpdlz",
-    "pool_fee_address": "sh1qeexkz69dz6j4q0zt0pkn36650yevwc8eksqeuu",
+    "pool_mining_address": "sh1qs4jvyp5r7ck0xf2ywyhcm3sn3ldzgvupmp0m8a",
+    "pool_fee_address": "sh1qs4jvyp5r7ck0xf2ywyhcm3sn3ldzgvupmp0m8a",
     "withdraw_threshold": 10000000,
     "fee_percentage_outof1000": 5,
     "pool_port": 3333,
-    "web_port": 3000
+    "web_port": 3000,
+    "pool_connection": "ws://127.0.0.1:"
 }

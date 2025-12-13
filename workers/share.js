@@ -1,11 +1,11 @@
 const { parentPort } = require('worker_threads');
-const { constructShare } = require('../services/share_construction_service');
+const { constructShareV2 } = require('../services/share_construction_service');
 
 parentPort.on('message', (data) => {
     try {
         const { job, nonce, path, blockTarget, blockHex } = data;
         
-        const obj = constructShare(job.data, nonce, path);
+        const obj = constructShareV2(job.data, nonce, path);
         const hashVal = Buffer.from(obj.hash, 'hex');
         const target = Buffer.from(job.target, 'hex');
         const block = Buffer.from(blockTarget, 'hex');

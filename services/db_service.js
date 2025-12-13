@@ -298,6 +298,28 @@ const getBannedIps = async () => {
     }
 };
 
+const getRecentShares = async (limit = 20) => {
+    try {
+        const sharesCollection = db.collection('shares');
+        const shares = await sharesCollection
+            .find({})
+            .sort({ timestamp: -1 })
+            .limit(limit)
+            .toArray();
+        
+        return shares.map(share => ({
+            minerId: share.minerId,
+            hash: share.hash,
+            timestamp: share.timestamp,
+            target: share.target,
+            difficulty: getDifficultyForShare(targetToNBits(share.target))
+        }));
+    } catch (error) {
+        console.error("Error retrieving recent shares:", error);
+        return [];
+    }
+};
+
 module.exports = {
     initDB,
     saveShare,
@@ -307,6 +329,7 @@ module.exports = {
     getMinersWithBalanceAbove,
 
     calculatePoolHashrate,
+    getRecentShares,
 
     isTransactionProcessed,
     markTransactionAsProcessed,

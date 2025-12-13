@@ -185,7 +185,7 @@ const startMiningService = async (port) => {
 
     gwss = new WebSocket.Server({ port, maxPayload: MAX_MESSAGE_SIZE });
     
-    gwss.on('connection', async (ws) => {
+    gwss.on('connection', async (ws, req) => {
         const ipAddress = getIpAddress(ws);
         
         if (ipAddress == null) {
@@ -198,7 +198,50 @@ const startMiningService = async (port) => {
             return;
         }
 
-        ws.difficulty = 1
+        // Default difficulty is 512 (Target: 007fffff...)
+        // Base Target (Diff 1) is ffff...
+        ws.difficulty = 512;
+
+        // Try to extract initial difficulty from URL path
+        // Format: /target (e.g., /033)
+        if (req && req.url && req.url.length > 1) {
+            try {
+                // Remove leading slash and potential query parameters
+                const path = req.url.split('?')[0].substring(1);
+                
+                // Check if the path is a valid hex string (target prefix)
+                if (isHexOrAlphabet(path)) {
+                    const BN = require('bn.js');
+                    const targetPrefix = path.toLowerCase();
+                    
+                    // Pad to 64 chars (256 bits)
+                    let paddedTargetStr = targetPrefix.padEnd(64, '0');
+                    
+                    // Max target allowed is 1f00... (easiest allowed)
+                    // If user provides something larger (e.g. 2f...), cap it at 1f...
+                    const maxTargetStr = '1f'.padEnd(64, '0');
+                    const maxTargetBN = new BN(maxTargetStr, 16);
+                    let userTargetBN = new BN(paddedTargetStr, 16);
+
+                    if (userTargetBN.gt(maxTargetBN)) {
+                        userTargetBN = maxTargetBN;
+                    }
+
+                    // Calculate difficulty = BaseTarget / UserTarget
+                    // BaseTarget is FFFF... (full range)
+                    const diff1Target = new BN('f'.repeat(64), 16);
+                    
+                    let newDiff = diff1Target.div(userTargetBN).toNumber();
+                    if (newDiff < 1) newDiff = 1;
+
+                    ws.difficulty = newDiff;
+                    console.log(`[MiningService] Set initial difficulty to ${newDiff} from URL target ${path}`);
+                }
+            } catch (e) {
+                console.error('Error parsing URL for initial difficulty:', e);
+            }
+        }
+
         sendJobToWS(ws)
         global.totalMiners += 1;
 
