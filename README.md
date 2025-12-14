@@ -98,7 +98,7 @@ Format: `ws://<pool_address>:<port>/<target_prefix>`
 
 Example:
 ```
-./target/release/shaipot -a sh1qs4jvyp5r7ck0xf2ywyhcm3sn3ldzgvupmp0m8a -p ws://47.76.39.214:18732/003ffff 
+./target/release/shaipot -a sh1qs4jvyp5r7ck0xf2ywyhcm3sn3ldzgvupmp0m8a -p ws://127.0.0.1:3333/003ffff 
 ```
 In this example, `003ffff` is the initial target prefix. A larger target value means lower difficulty.
 - Default difficulty (if unspecified): ~512 (Target starts with `007fffff...`)
