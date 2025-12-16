@@ -394,6 +394,9 @@ body::before {
 
 .loading {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    min-height: 1.5em; /* Prevent height collapse during loading */
+    display: inline-block; /* Maintain layout flow */
+    min-width: 60px; /* Prevent width collapse */
 }
 
 @media (max-width: 768px) {

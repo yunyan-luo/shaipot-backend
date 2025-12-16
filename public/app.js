@@ -26,7 +26,11 @@ class AnimationUtils {
 
     static addLoadingState(element) {
         element.classList.add('loading');
-        element.textContent = 'Loading...';
+        // Only set text to Loading... if the element is empty or explicitly requested
+        // This prevents flickering during data updates
+        if (!element.textContent || element.textContent.trim() === '') {
+            element.textContent = 'Loading...';
+        }
     }
 
     static removeLoadingState(element, content) {
