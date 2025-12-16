@@ -205,7 +205,7 @@ const calculatePoolHashrate = async (minerId = null, batchSize = 1000) => {
     const timeDiff = (new Date(lastShare.timestamp) - new Date(firstShare.timestamp)) / 1000;
     if (timeDiff <= 0) return 0;
 
-    return (totalWork / timeDiff) * 512;
+    return (totalWork / timeDiff);
 };
 
 const distributeRewards = async (rewardAmount, blockNonce, blockTime) => {
