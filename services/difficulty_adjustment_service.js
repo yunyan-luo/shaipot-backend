@@ -1,71 +1,118 @@
 const { getDifficultyForShare, targetToNBits } = require('./nbits_service');
 
-const submissionTimestamps = {};
-const kalmanFilters = {};
-const rollingSubmissionTimes = {};
+const minerData = {};
 
-const targetRate = 200;
-const maxRollingWindow = 10;
+const TARGET_SHARE_TIME = 60;
+const SHARE_EXPIRATION_TIME = 90;
+const ROLLING_WINDOW_SIZE = 15;
 
-const initializeKalmanFilter = () => {
+const PID_KP = 0.1;
+const PID_KI = 0.01;
+const PID_KD = 0.05;
+
+const initializeMinerData = () => {
     return {
-        estimate: 0,
-        errorEstimate: 4,
-        measurementNoise: 1,
-        processNoise: 1,
+        lastShareTimestamp: Date.now(),
+        shareIssuedTimestamp: Date.now(),
+        pidState: {
+            integral: 0,
+            lastError: 0
+        },
+        rollingSubmissionTimes: [],
+        invalidShareCount: 0
     };
 };
 
 const adjustDifficulty = async (minerId, ws, blockNBits) => {
     const blockDifficulty = getDifficultyForShare(blockNBits);
-    const maxAllowedDifficulty = Math.round(blockDifficulty / 4);
+    const now = Date.now();
 
-    const now = Date.now() / 1000;
-
-    if (!kalmanFilters[minerId]) {
-        kalmanFilters[minerId] = initializeKalmanFilter();
-
-        if (!submissionTimestamps[minerId]) {
-            submissionTimestamps[minerId] = now;
-        }
-
-        if (!rollingSubmissionTimes[minerId]) {
-            rollingSubmissionTimes[minerId] = [];
-        }
+    if (!minerData[minerId]) {
+        minerData[minerId] = initializeMinerData();
         return;
     }
 
-    const kalman = kalmanFilters[minerId];
-    const lastSubmissionTime = submissionTimestamps[minerId];
-    const elapsedTime = now - lastSubmissionTime;
+    const data = minerData[minerId];
+    const elapsedTime = (now - data.lastShareTimestamp) / 1000;
 
-    submissionTimestamps[minerId] = now;
+    data.lastShareTimestamp = now;
 
-    if (rollingSubmissionTimes[minerId].length >= maxRollingWindow) {
-        rollingSubmissionTimes[minerId].shift();
+    if (data.rollingSubmissionTimes.length >= ROLLING_WINDOW_SIZE) {
+        data.rollingSubmissionTimes.shift();
     }
-    rollingSubmissionTimes[minerId].push(elapsedTime);
+    data.rollingSubmissionTimes.push(elapsedTime);
 
-    const avgElapsedTime = rollingSubmissionTimes[minerId].reduce((a, b) => a + b, 0) / rollingSubmissionTimes[minerId].length;
-    kalman.errorEstimate += kalman.processNoise;
-    const kalmanGain = kalman.errorEstimate / (kalman.errorEstimate + kalman.measurementNoise);
-    kalman.estimate = kalman.estimate + kalmanGain * (avgElapsedTime - kalman.estimate);
-    kalman.errorEstimate = (1 - kalmanGain) * kalman.errorEstimate;
-    const error = targetRate - kalman.estimate;
+    const avgElapsedTime = data.rollingSubmissionTimes.reduce((a, b) => a + b, 0) / data.rollingSubmissionTimes.length;
+
+    const error = avgElapsedTime - TARGET_SHARE_TIME;
+
+    data.pidState.integral += error;
+
+    data.pidState.integral = Math.max(-100, Math.min(100, data.pidState.integral));
+
+    const derivative = error - data.pidState.lastError;
+    data.pidState.lastError = error;
+
+    const pidOutput = (PID_KP * error) + (PID_KI * data.pidState.integral) + (PID_KD * derivative);
+
     let currentDifficulty = ws.difficulty || 1.0;
-    currentDifficulty += error * 0.05;
+    currentDifficulty = currentDifficulty * (1 - pidOutput);
 
-    // Ensure difficulty doesn't exceed half of block difficulty
-    currentDifficulty = Math.min(currentDifficulty, maxAllowedDifficulty);
+    currentDifficulty = Math.min(currentDifficulty, blockDifficulty);
     currentDifficulty = Math.max(currentDifficulty, 1);
 
     ws.difficulty = currentDifficulty;
 };
 
-const minerLeft = (minerId) => {
-    delete submissionTimestamps[minerId];
-    delete kalmanFilters[minerId];
-    delete rollingSubmissionTimes[minerId];
+const trackShareIssued = (minerId) => {
+    if (!minerData[minerId]) {
+        minerData[minerId] = initializeMinerData();
+    }
+    minerData[minerId].shareIssuedTimestamp = Date.now();
 };
 
-module.exports = { adjustDifficulty, minerLeft };
+const checkStaleShares = (wss, sendJobCallback) => {
+    const now = Date.now();
+    
+    wss.clients.forEach((ws) => {
+        if (!ws.minerId || !minerData[ws.minerId]) {
+            return;
+        }
+
+        const data = minerData[ws.minerId];
+        const timeSinceLastSubmission = (now - data.lastShareTimestamp) / 1000;
+
+        if (timeSinceLastSubmission > SHARE_EXPIRATION_TIME && ws.readyState === ws.OPEN) {
+            const currentDifficulty = ws.difficulty || 1.0;
+            ws.difficulty = Math.max(currentDifficulty * 0.5, 1);
+            
+            data.lastShareTimestamp = now;
+            
+            if (ws.jobBuffer) {
+                ws.jobBuffer.forEach(job => job.jobId = -1);
+            }
+            
+            sendJobCallback(ws);
+        }
+    });
+};
+
+const minerLeft = (minerId) => {
+    delete minerData[minerId];
+};
+
+const trackInvalidShare = (minerId) => {
+    if (!minerData[minerId]) {
+        minerData[minerId] = initializeMinerData();
+    }
+    minerData[minerId].invalidShareCount++;
+    return minerData[minerId].invalidShareCount;
+};
+
+const resetInvalidShareCount = (minerId) => {
+    if (minerData[minerId]) {
+        minerData[minerId].invalidShareCount = 0;
+    }
+};
+
+module.exports = { adjustDifficulty, minerLeft, trackShareIssued, checkStaleShares, trackInvalidShare, resetInvalidShareCount };

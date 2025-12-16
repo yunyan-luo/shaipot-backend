@@ -18,14 +18,7 @@ function extractBlockHexToNBits(blockData) {
 }
 
 function adjustTargetForDifficulty(difficulty) {
-    // Use custom start difficulty if provided via -s parameter, otherwise use maxTarget
-    let baseTarget;
-    if (global.customStartDiff) {
-        baseTarget = new BN(global.customStartDiff, 16);
-        console.log(`Using custom start difficulty: ${global.customStartDiff}`);
-    } else {
-        baseTarget = new BN('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 16);
-    }
+    const baseTarget = new BN('1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 16);
     
     const adjustedTarget = baseTarget.div(new BN(Math.round(difficulty)));
     if (adjustedTarget.gt(baseTarget)) {

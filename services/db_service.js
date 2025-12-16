@@ -2,15 +2,17 @@ const { MongoClient } = require('mongodb');
 const { getDifficultyForShare, targetToNBits } = require('./nbits_service')
 
 let db;
+let mongoClient = null;
+let deleteSharesInterval = null;
 
 const initDB = async () => {
     try {
         const uri = 'mongodb://localhost:27017';
         const dbName = 'mining_pool';
 
-        const client = new MongoClient(uri);
-        await client.connect();
-        db = client.db(dbName);
+        mongoClient = new MongoClient(uri);
+        await mongoClient.connect();
+        db = mongoClient.db(dbName);
 
         console.log("Connected to MongoDB database");
 
@@ -29,9 +31,22 @@ const initDB = async () => {
         await bannedIpsCollection.createIndex({ ipAddress: 1 }, { unique: true });
 
         deleteOldShares()
-        setInterval(deleteOldShares, 60 * 60 * 1000);
+        deleteSharesInterval = setInterval(deleteOldShares, 60 * 60 * 1000);
     } catch (error) {
         console.error("Error initializing the database:", error);
+    }
+}
+
+const shutdownDB = async () => {
+    if (deleteSharesInterval) {
+        clearInterval(deleteSharesInterval);
+        deleteSharesInterval = null;
+    }
+    if (mongoClient) {
+        await mongoClient.close();
+        mongoClient = null;
+        db = null;
+        console.log("MongoDB connection closed.");
     }
 }
 
@@ -163,6 +178,17 @@ const getMinersWithBalanceAbove = async (balanceThreshold) => {
     }
 };
 
+const getAllMinersWithBalance = async () => {
+    try {
+        const minersCollection = db.collection('miners');
+        const miners = await minersCollection.find({}).toArray();
+        return miners;
+    } catch (error) {
+        console.error("Error retrieving all miners:", error);
+        return [];
+    }
+};
+
 const calculatePoolHashrate = async (minerId = null, batchSize = 1000) => {
     const currentTime = Date.now();
     const timeWindow = (minerId != null) ? 1800 : 600;
@@ -205,7 +231,7 @@ const calculatePoolHashrate = async (minerId = null, batchSize = 1000) => {
     const timeDiff = (new Date(lastShare.timestamp) - new Date(firstShare.timestamp)) / 1000;
     if (timeDiff <= 0) return 0;
 
-    return (totalWork / timeDiff) * 512;
+    return (totalWork / timeDiff) * 5.12;
 };
 
 const distributeRewards = async (rewardAmount, blockNonce, blockTime) => {
@@ -298,15 +324,16 @@ const getBannedIps = async () => {
     }
 };
 
-const getRecentShares = async (limit = 20) => {
+const getRecentShares = async (limit = 20, minerAddress = null) => {
     try {
         const sharesCollection = db.collection('shares');
+        const query = minerAddress ? { minerId: minerAddress } : {};
         const shares = await sharesCollection
-            .find({})
+            .find(query)
             .sort({ timestamp: -1 })
             .limit(limit)
             .toArray();
-        
+
         return shares.map(share => ({
             minerId: share.minerId,
             hash: share.hash,
@@ -322,11 +349,13 @@ const getRecentShares = async (limit = 20) => {
 
 module.exports = {
     initDB,
+    shutdownDB,
     saveShare,
     distributeRewards,
     updateMinerBalance,
     getMinerBalance,
     getMinersWithBalanceAbove,
+    getAllMinersWithBalance,
 
     calculatePoolHashrate,
     getRecentShares,

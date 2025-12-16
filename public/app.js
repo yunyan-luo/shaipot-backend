@@ -1,40 +1,3 @@
-// Theme Management
-class ThemeManager {
-    constructor() {
-        this.theme = localStorage.getItem('theme') || 'light';
-        this.init();
-    }
-
-    init() {
-        this.applyTheme();
-        this.bindEvents();
-    }
-
-    applyTheme() {
-        document.documentElement.setAttribute('data-theme', this.theme);
-        localStorage.setItem('theme', this.theme);
-    }
-
-    toggle() {
-        this.theme = this.theme === 'light' ? 'dark' : 'light';
-        this.applyTheme();
-        
-        // Add a subtle animation feedback
-        const toggleBtn = document.getElementById('theme-toggle');
-        toggleBtn.style.transform = 'scale(0.95)';
-        setTimeout(() => {
-            toggleBtn.style.transform = '';
-        }, 150);
-    }
-
-    bindEvents() {
-        const toggleBtn = document.getElementById('theme-toggle');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', () => this.toggle());
-        }
-    }
-}
-
 // Animation Utilities
 class AnimationUtils {
     static fadeIn(element, duration = 300) {
@@ -164,15 +127,10 @@ class SharesManager {
     constructor() {
         this.updateInterval = null;
         this.isLoading = false;
-        this.init();
+        this.currentMinerAddress = null;
     }
 
-    init() {
-        this.startAutoUpdate();
-        this.updateShares();
-    }
-
-    async updateShares() {
+    async updateShares(minerAddress = null) {
         if (this.isLoading) return;
         
         this.isLoading = true;
@@ -184,7 +142,10 @@ class SharesManager {
         }
 
         try {
-            const response = await fetch('/recent-shares?limit=20');
+            const url = minerAddress 
+                ? `/recent-shares?limit=20&address=${encodeURIComponent(minerAddress)}`
+                : '/recent-shares?limit=20';
+            const response = await fetch(url);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -269,10 +230,11 @@ class SharesManager {
         }
     }
 
-    startAutoUpdate() {
-        // Update shares every 10 seconds (same as pool hash)
+    startAutoUpdate(minerAddress) {
+        this.stopAutoUpdate();
+        this.currentMinerAddress = minerAddress;
         this.updateInterval = setInterval(() => {
-            this.updateShares();
+            this.updateShares(this.currentMinerAddress);
         }, 10000);
     }
 
@@ -280,6 +242,21 @@ class SharesManager {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
             this.updateInterval = null;
+        }
+        this.currentMinerAddress = null;
+    }
+
+    showSharesSection() {
+        const sharesSection = document.getElementById('shares-section');
+        if (sharesSection) {
+            sharesSection.style.display = 'block';
+        }
+    }
+
+    hideSharesSection() {
+        const sharesSection = document.getElementById('shares-section');
+        if (sharesSection) {
+            sharesSection.style.display = 'none';
         }
     }
 }
@@ -368,15 +345,19 @@ class MiningPoolDashboard {
         const resultsContainer = document.getElementById('miner-data');
 
         if (hashrateElement && rewardElement && resultsContainer) {
-            // Format and display data
             hashrateElement.textContent = DataFormatter.formatHashrate(data.hashrate);
             rewardElement.textContent = DataFormatter.formatReward(data.currentReward);
             
-            // Show results with animation
             AnimationUtils.slideIn(resultsContainer);
             
-            // Show success notification
             this.showNotification('Miner data loaded successfully!', 'success');
+            
+            const address = document.getElementById('miner-address').value.trim();
+            if (address && window.sharesManager) {
+                window.sharesManager.showSharesSection();
+                window.sharesManager.updateShares(address);
+                window.sharesManager.startAutoUpdate(address);
+            }
         }
     }
 
@@ -384,6 +365,10 @@ class MiningPoolDashboard {
         const resultsContainer = document.getElementById('miner-data');
         if (resultsContainer) {
             resultsContainer.classList.remove('show');
+        }
+        if (window.sharesManager) {
+            window.sharesManager.stopAutoUpdate();
+            window.sharesManager.hideSharesSection();
         }
     }
 
@@ -525,24 +510,13 @@ class MiningPoolDashboard {
     }
 }
 
-// Initialize application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize theme manager
-    new ThemeManager();
-    
-    // Initialize dashboard
     window.dashboard = new MiningPoolDashboard();
+    window.sharesManager = new SharesManager();
     
-    // Initialize shares manager with a small delay to avoid simultaneous requests
-    setTimeout(() => {
-        window.sharesManager = new SharesManager();
-    }, 1000);
-    
-    // Add smooth scrolling for better UX
     document.documentElement.style.scrollBehavior = 'smooth';
 });
 
-// Handle page visibility changes to pause/resume updates
 document.addEventListener('visibilitychange', () => {
     if (window.dashboard) {
         if (document.hidden) {
@@ -553,12 +527,11 @@ document.addEventListener('visibilitychange', () => {
         }
     }
     
-    if (window.sharesManager) {
+    if (window.sharesManager && window.sharesManager.currentMinerAddress) {
         if (document.hidden) {
             window.sharesManager.stopAutoUpdate();
         } else {
-            window.sharesManager.startAutoUpdate();
-            window.sharesManager.updateShares();
+            window.sharesManager.startAutoUpdate(window.sharesManager.currentMinerAddress);
         }
     }
 });

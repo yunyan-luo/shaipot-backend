@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SHAICoin Mining Pool</title>
+    <title>Shaicoin Mining Pool</title>
     <link rel="stylesheet" href="/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -16,15 +16,9 @@
                 <div class="logo-section">
                     <img src="/shaicoin.png" alt="Shaicoin Logo" class="logo-img">
                     <div class="logo-text">
-                        <h1>SHAICoin</h1>
+                        <h1>Shaicoin</h1>
                         <span class="subtitle">Mining Pool</span>
                     </div>
-                </div>
-                <div class="header-controls">
-                    <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
-                        <i class="fas fa-sun"></i>
-                        <i class="fas fa-moon"></i>
-                    </button>
                 </div>
             </div>
         </header>
@@ -138,8 +132,8 @@
                 </div>
             </section>
 
-            <!-- Recent Shares -->
-            <section class="shares-section">
+            <!-- Recent Shares (visible only after miner search) -->
+            <section class="shares-section" id="shares-section" style="display: none;">
                 <h2 class="section-title">
                     <i class="fas fa-history"></i>
                     Recent Shares
@@ -173,11 +167,9 @@
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-content">
-                <p>&copy; 2024 SHAICoin Mining Pool. All rights reserved.</p>
                 <div class="footer-links">
                     <a href="https://www.shaicoin.com/" target="_blank">Documentation</a>
                     <a href="https://blocks.shaicoin.com/" target="_blank">Explore</a>
-                    <a href="#">API</a>
                 </div>
             </div>
         </footer>

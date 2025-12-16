@@ -90,20 +90,6 @@ To effectively manage both the mining pool server and the MongoDB process on the
 Using `screen` ensures that both MongoDB and the mining pool continue running even if you're not connected to the server, providing an efficient way to monitor both processes in real time.
 
 
-## Custom Initial Difficulty
-
-You can specify an initial difficulty for your miner by appending a target hex value to the WebSocket URL path. This is useful for low-power devices or specific mining strategies.
-
-Format: `ws://<pool_address>:<port>/<target_prefix>`
-
-Example:
-```
-./target/release/shaipot -a sh1qs4jvyp5r7ck0xf2ywyhcm3sn3ldzgvupmp0m8a -p ws://47.76.39.214:18732/003ffff 
-```
-In this example, `003ffff` is the initial target prefix. A larger target value means lower difficulty.
-- Default difficulty (if unspecified): ~512 (Target starts with `007fffff...`)
-- Minimum difficulty allowed: ~8 (Target starts with `1f...`)
-
 ## Troubleshooting
 
 - If you encounter issues with the native addon, ensure you have the necessary build tools installed for your platform.

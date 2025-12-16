@@ -254,11 +254,11 @@ const sendBalanceToMiners = async () => {
         const miners = await getMinersWithBalanceAbove(config.withdraw_threshold);
 
         if (!miners.length) {
-            //console.log("No miners with balance above the threshold.");
             return;
         }
 
         var outputs = [];
+        const minerPayouts = [];
         let totalFeesCollected = 0;
 
         for (const miner of miners) {
@@ -283,6 +283,11 @@ const sendBalanceToMiners = async () => {
                 amount: finalPayout
             });
 
+            minerPayouts.push({
+                address: miner.minerId,
+                originalBalance: minerBalance
+            });
+
             totalFeesCollected += feeAmount;
         }
 
@@ -291,17 +296,23 @@ const sendBalanceToMiners = async () => {
                 address: config.pool_fee_address,
                 amount: totalFeesCollected
             });
-            //console.log(`Sending ${totalFeesCollected} satoshis to the pool fee address ${config.pool_fee_address}`);
+        }
+
+        if (outputs.length === 0) {
+            return;
         }
 
         try {
-            await createAndSendTransaction(outputs);
-
-            for(var i = 0, Length = outputs.length; i < Length; i++) {
-                await updateMinerBalance(outputs[i].address, 0);
+            for (const payout of minerPayouts) {
+                await updateMinerBalance(payout.address, 0);
             }
+            
+            await createAndSendTransaction(outputs);
         } catch (sendError) {
             console.error(`Error sending: ${sendError.message}`);
+            for (const payout of minerPayouts) {
+                await updateMinerBalance(payout.address, payout.originalBalance);
+            }
         }
     } catch (error) {
         console.error("Error sending balances to miners:", error);
@@ -388,11 +399,24 @@ async function submitBlock(rawBlockHex) {
     }
 }
 
+const shutdownShaicoinService = () => {
+    if (blockFetchInterval) {
+        clearInterval(blockFetchInterval);
+        blockFetchInterval = null;
+    }
+    if (abortController) {
+        abortController.abort();
+        abortController = null;
+    }
+    currentLongPollId = null;
+};
+
 module.exports = {
     rpcCall,
     getBlockTemplate,
     trackAndDistribute,
     sendBalanceToMiners,
     submitBlock,
-    validateAddress
+    validateAddress,
+    shutdownShaicoinService
 };

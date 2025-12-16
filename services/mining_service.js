@@ -1,5 +1,5 @@
 const WebSocket = require('ws');
-const { adjustDifficulty, minerLeft } = require('./difficulty_adjustment_service');
+const { adjustDifficulty, minerLeft, trackShareIssued, checkStaleShares, trackInvalidShare, resetInvalidShareCount } = require('./difficulty_adjustment_service');
 const { generateJob, extractBlockHexToNBits } = require('./share_construction_service');
 const { initDB, banIp, isIpBanned, saveShare } = require('./db_service');
 const shaicoin_service = require('./shaicoin_service')
@@ -10,7 +10,7 @@ const numCPUs = require('os').cpus().length - 1;
 
 let workerPool = new Array(numCPUs).fill(null).map(() => {
     const worker = new Worker(path.join(__dirname, '../workers/share.js'))
-    worker.setMaxListeners(1000)
+    worker.setMaxListeners(100)
     return worker;
 });
 var currentWorker = 0;
@@ -18,6 +18,8 @@ var currentWorker = 0;
 var current_raw_block = null
 var block_data = null
 var gwss = null
+var staleCheckInterval = null
+var balanceInterval = null
 
 const MAX_MESSAGE_SIZE = 10000
 
@@ -40,7 +42,20 @@ const getIpAddress = (ws) => {
 const sendJobToWS = (ws) => {
     if (ws.readyState === ws.OPEN) {
         const job = generateJob(ws, block_data);
-        ws.job = job;
+        
+        if (!ws.jobBuffer) {
+            ws.jobBuffer = [];
+        }
+        
+        ws.jobBuffer.push(job);
+        
+        if (ws.jobBuffer.length > 2) {
+            ws.jobBuffer.shift();
+        }
+        
+        if (ws.minerId) {
+            trackShareIssued(ws.minerId);
+        }
         ws.send(JSON.stringify({
             type: 'job',
             job_id: job.jobId,
@@ -68,27 +83,50 @@ const handleShareSubmission = async (data, ws) => {
         if(isValid) {
             ws.minerId = miner_id;
         } else {
-            // turn them into a frog
             ws.close(1008, 'Bye.');
             return;
         }
     }
 
-    if (ws.job && job_id !== ws.job.jobId) {
+    if (!ws.jobBuffer) {
+        ws.jobBuffer = [];
+    }
+
+    const matchingJob = ws.jobBuffer.find(job => job.jobId === job_id);
+    
+    if (!matchingJob) {
         ws.send(JSON.stringify({ type: 'rejected', message: 'Job ID mismatch' }));
         return;
     }
 
-    ws.job.jobId = -1;
+    ws.jobBuffer = ws.jobBuffer.filter(job => job.jobId !== job_id);
 
-    // Get next worker in round-robin fashion
     const worker = workerPool[currentWorker];
     currentWorker = (currentWorker + 1) % workerPool.length;
+
+    const requestId = `${miner_id}_${Date.now()}_${Math.random()}`;
 
     var isAFrog = false
     try {
         const processSharePromise = new Promise((resolve, reject) => {
+            let timeoutId;
+            let isSettled = false;
+            
+            const cleanup = () => {
+                if (isSettled) return;
+                isSettled = true;
+                clearTimeout(timeoutId);
+                worker.off('message', messageHandler);
+                worker.off('error', errorHandler);
+            };
+            
             const messageHandler = async (result) => {
+                if (result.requestId !== requestId) {
+                    return;
+                }
+                
+                cleanup();
+                
                 try {
                     switch(result.type) {
                         case 'block_found':
@@ -97,48 +135,45 @@ const handleShareSubmission = async (data, ws) => {
                             
                         case 'share_accepted':
                             await saveShare(miner_id, result.share);
+                            resetInvalidShareCount(miner_id);
                             ws.send(JSON.stringify({ type: 'accepted' }));
                             break;
                             
                         case 'share_rejected':
+                            const invalidCount = trackInvalidShare(miner_id);
                             ws.send(JSON.stringify({ type: 'rejected' }));
+                            if (invalidCount >= 8) {
+                                ws.close(1008, 'Bye.');
+                            }
                             break;
                         case 'error':
                             isAFrog = true
-                            // dont close but cool them off by
-                            // not sending a new share
-                            // // turn them into a frog
-                            // ws.close(1008, 'Bye.');
                             break;
                     }
                     resolve();
                 } catch (error) {
                     reject(error);
-                } finally {
-                    worker.off('message', messageHandler);
-                    worker.off('error', errorHandler);
                 }
             };
         
             const errorHandler = (error) => {
-                try {
-                    worker.off('message', messageHandler);
-                    worker.off('error', errorHandler);
-                    reject(error);
-                } catch (error) {
-                    reject(error);
-                } finally {
-                    worker.off('message', messageHandler);
-                    worker.off('error', errorHandler);
-                }
+                cleanup();
+                reject(error);
+            };
+            
+            const timeoutHandler = () => {
+                cleanup();
+                reject(new Error('Share validation timeout'));
             };
 
             worker.on('message', messageHandler);
             worker.on('error', errorHandler);
+            timeoutId = setTimeout(timeoutHandler, 30000);
         });
 
         worker.postMessage({
-            job: ws.job,
+            requestId,
+            job: matchingJob,
             nonce,
             path: minerPath,
             blockTarget: current_raw_block.expanded,
@@ -198,9 +233,7 @@ const startMiningService = async (port) => {
             return;
         }
 
-        // Default difficulty is 512 (Target: 007fffff...)
-        // Base Target (Diff 1) is ffff...
-        ws.difficulty = 512;
+        ws.difficulty = 1;
 
         // Try to extract initial difficulty from URL path
         // Format: /target (e.g., /033)
@@ -281,6 +314,12 @@ const startMiningService = async (port) => {
             if(ws.minerId) {
                 minerLeft(ws.minerId)
             }
+            if (ws.jobBuffer) {
+                delete ws.jobBuffer;
+            }
+            if (ws.difficulty) {
+                delete ws.difficulty;
+            }
             global.totalMiners -= 1;
             ws.removeAllListeners('message');
         });
@@ -294,13 +333,47 @@ const startMiningService = async (port) => {
         }
     }
     
+    staleCheckInterval = setInterval(() => {
+        checkStaleShares(gwss, sendJobToWS);
+    }, 15000);
+
     await shaicoin_service.sendBalanceToMiners()
-    setInterval(shaicoin_service.sendBalanceToMiners, 30 * 60 * 1000);
+    balanceInterval = setInterval(shaicoin_service.sendBalanceToMiners, 30 * 60 * 1000);
 
     await shaicoin_service.getBlockTemplate()
     console.log(`Mining service started on port ${port}`);
 };
 
+const shutdownMiningService = () => {
+    console.log('Shutting down mining service...');
+    
+    if (staleCheckInterval) {
+        clearInterval(staleCheckInterval);
+        staleCheckInterval = null;
+    }
+    
+    if (balanceInterval) {
+        clearInterval(balanceInterval);
+        balanceInterval = null;
+    }
+    
+    if (gwss) {
+        gwss.clients.forEach((ws) => {
+            ws.close(1001, 'Server shutting down');
+        });
+        gwss.close();
+        gwss = null;
+    }
+    
+    for (const worker of workerPool) {
+        worker.terminate();
+    }
+    workerPool = [];
+    
+    console.log('Mining service shutdown complete.');
+};
+
 module.exports = {
-    startMiningService
+    startMiningService,
+    shutdownMiningService
 };

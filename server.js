@@ -2,32 +2,11 @@ process.title = 'shaicoin_mining_pool'
 global.totalMiners = 0
 //global.minersToBan = global.minersToBan || new Set();
 
-// Parse command line arguments
-let customStartDiff = null;
-const args = process.argv.slice(2);
-for (let i = 0; i < args.length; i++) {
-    if (args[i] === '-s' && i + 1 < args.length) {
-        const hexValue = args[i + 1];
-        // Validate hex string
-        if (/^[0-9a-fA-F]+$/.test(hexValue)) {
-            // Pad to 64 characters with zeros
-            customStartDiff = hexValue.toLowerCase().padEnd(64, '0');
-            console.log(`Custom start difficulty set: ${customStartDiff}`);
-        } else {
-            console.error(`Invalid hex value for -s parameter: ${hexValue}`);
-            process.exit(1);
-        }
-        break;
-    }
-}
-
-// Make customStartDiff globally available
-global.customStartDiff = customStartDiff;
-
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { startMiningService } = require('./services/mining_service');
-const { calculatePoolHashrate, getMinerBalance, getRecentShares } = require('./services/db_service');
+const { startMiningService, shutdownMiningService } = require('./services/mining_service');
+const { shutdownShaicoinService } = require('./services/shaicoin_service');
+const { calculatePoolHashrate, getMinerBalance, getRecentShares, shutdownDB } = require('./services/db_service');
 const { withdraw_threshold, fee_percentage_outof1000, pool_port, web_port, pool_mining_address, pool_connection } = require('./config.json')
 const app = express();
 const PORT = process.env.PORT || web_port;
@@ -114,8 +93,10 @@ app.get('/miner', async (req, res) => {
 
 app.get('/recent-shares', async (req, res) => {
     try {
-        const limit = parseInt(req.query.limit) || 20;
-        const shares = await getRecentShares(limit);
+        const requestedLimit = parseInt(req.query.limit) || 20;
+        const limit = Math.min(requestedLimit, 50);
+        const address = req.query.address;
+        const shares = await getRecentShares(limit, address);
         res.json(shares);
     } catch (error) {
         console.error('Error retrieving recent shares:', error);
@@ -123,19 +104,39 @@ app.get('/recent-shares', async (req, res) => {
     }
 });
 
-app.listen(PORT, async () => {
+let httpServer = null;
+
+httpServer = app.listen(PORT, async () => {
     console.log(`Web server is running on http://localhost:${PORT}`);
     await startMiningService(pool_port);
 });
 
+const gracefulShutdown = async (signal) => {
+    console.log(`\n${signal} received. Starting graceful shutdown...`);
+    
+    shutdownShaicoinService();
+    shutdownMiningService();
+    
+    if (httpServer) {
+        httpServer.close(() => {
+            console.log('HTTP server closed.');
+        });
+    }
+    
+    await shutdownDB();
+    
+    console.log('Graceful shutdown complete.');
+    process.exit(0);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
-    // Optionally exit or restart the process after logging
 });
   
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection:', reason);
-    // Optionally exit or restart the process after logging
 });
   
