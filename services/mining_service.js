@@ -3,17 +3,7 @@ const { adjustDifficulty, minerLeft, trackShareIssued, checkStaleShares, trackIn
 const { generateJob, extractBlockHexToNBits } = require('./share_construction_service');
 const { initDB, banIp, isIpBanned, saveShare } = require('./db_service');
 const shaicoin_service = require('./shaicoin_service')
-
-const { Worker } = require('worker_threads');
-const path = require('path');
-const numCPUs = require('os').cpus().length - 1;
-
-let workerPool = new Array(numCPUs).fill(null).map(() => {
-    const worker = new Worker(path.join(__dirname, '../workers/share.js'))
-    worker.setMaxListeners(100)
-    return worker;
-});
-var currentWorker = 0;
+const addon = require('../build/Release/addon');
 
 var current_raw_block = null
 var block_data = null
@@ -101,89 +91,52 @@ const handleShareSubmission = async (data, ws) => {
 
     ws.jobBuffer = ws.jobBuffer.filter(job => job.jobId !== job_id);
 
-    const worker = workerPool[currentWorker];
-    currentWorker = (currentWorker + 1) % workerPool.length;
-
-    const requestId = `${miner_id}_${Date.now()}_${Math.random()}`;
-
-    var isAFrog = false
     try {
-        const processSharePromise = new Promise((resolve, reject) => {
-            let timeoutId;
-            let isSettled = false;
-            
-            const cleanup = () => {
-                if (isSettled) return;
-                isSettled = true;
-                clearTimeout(timeoutId);
-                worker.off('message', messageHandler);
-                worker.off('error', errorHandler);
-            };
-            
-            const messageHandler = async (result) => {
-                if (result.requestId !== requestId) {
-                    return;
-                }
-                
-                cleanup();
-                
-                try {
-                    switch(result.type) {
-                        case 'block_found':
-                            await shaicoin_service.submitBlock(result.blockHexUpdated);
-                            break;
-                            
-                        case 'share_accepted':
-                            await saveShare(miner_id, result.share);
-                            resetInvalidShareCount(miner_id);
-                            ws.send(JSON.stringify({ type: 'accepted' }));
-                            break;
-                            
-                        case 'share_rejected':
-                            const invalidCount = trackInvalidShare(miner_id);
-                            ws.send(JSON.stringify({ type: 'rejected' }));
-                            if (invalidCount >= 8) {
-                                ws.close(1008, 'Bye.');
-                            }
-                            break;
-                        case 'error':
-                            isAFrog = true
-                            break;
-                    }
-                    resolve();
-                } catch (error) {
-                    reject(error);
-                }
-            };
-        
-            const errorHandler = (error) => {
-                cleanup();
-                reject(error);
-            };
-            
-            const timeoutHandler = () => {
-                cleanup();
-                reject(new Error('Share validation timeout'));
-            };
-
-            worker.on('message', messageHandler);
-            worker.on('error', errorHandler);
-            timeoutId = setTimeout(timeoutHandler, 30000);
-        });
-
-        worker.postMessage({
-            requestId,
-            job: matchingJob,
+        var isAFrog = false
+        const result = await addon.validateShareAsync(
+            matchingJob.data,
             nonce,
-            path: minerPath,
-            blockTarget: current_raw_block.expanded,
-            blockHex: current_raw_block.blockhex
-        });
+            minerPath,
+            matchingJob.target,
+            current_raw_block.expanded,
+            current_raw_block.blockhex
+        );
 
-        await processSharePromise;
+        switch(result.type) {
+            case 'block_found':
+                await shaicoin_service.submitBlock(result.blockHexUpdated);
+                await saveShare(miner_id, {
+                    target: result.target,
+                    nonce: result.nonce,
+                    hash: result.hash,
+                    path: result.path
+                });
+                resetInvalidShareCount(miner_id);
+                ws.send(JSON.stringify({ type: 'accepted' }));
+                break;
 
-        if(isAFrog) {
-            return;
+            case 'share_accepted':
+                await saveShare(miner_id, {
+                    target: result.target,
+                    nonce: result.nonce,
+                    hash: result.hash,
+                    path: result.path
+                });
+                resetInvalidShareCount(miner_id);
+                ws.send(JSON.stringify({ type: 'accepted' }));
+                break;
+
+            case 'share_rejected':
+                const invalidCount = trackInvalidShare(miner_id);
+                ws.send(JSON.stringify({ type: 'rejected' }));
+                if (invalidCount >= 8) {
+                    ws.close(1008, 'Bye.');
+                }
+                break;
+
+            case 'error':
+                isAFrog = true
+                return;
         }
 
         await adjustDifficulty(miner_id, ws, `0x${current_raw_block.nbits}`);
@@ -234,46 +187,6 @@ const startMiningService = async (port) => {
         }
 
         ws.difficulty = 1;
-
-        // Try to extract initial difficulty from URL path
-        // Format: /target (e.g., /033)
-        if (req && req.url && req.url.length > 1) {
-            try {
-                // Remove leading slash and potential query parameters
-                const path = req.url.split('?')[0].substring(1);
-                
-                // Check if the path is a valid hex string (target prefix)
-                if (isHexOrAlphabet(path)) {
-                    const BN = require('bn.js');
-                    const targetPrefix = path.toLowerCase();
-                    
-                    // Pad to 64 chars (256 bits)
-                    let paddedTargetStr = targetPrefix.padEnd(64, '0');
-                    
-                    // Max target allowed is 1f00... (easiest allowed)
-                    // If user provides something larger (e.g. 2f...), cap it at 1f...
-                    const maxTargetStr = '1f'.padEnd(64, '0');
-                    const maxTargetBN = new BN(maxTargetStr, 16);
-                    let userTargetBN = new BN(paddedTargetStr, 16);
-
-                    if (userTargetBN.gt(maxTargetBN)) {
-                        userTargetBN = maxTargetBN;
-                    }
-
-                    // Calculate difficulty = BaseTarget / UserTarget
-                    // BaseTarget is FFFF... (full range)
-                    const diff1Target = new BN('f'.repeat(64), 16);
-                    
-                    let newDiff = diff1Target.div(userTargetBN).toNumber();
-                    if (newDiff < 1) newDiff = 1;
-
-                    ws.difficulty = newDiff;
-                    console.log(`[MiningService] Set initial difficulty to ${newDiff} from URL target ${path}`);
-                }
-            } catch (e) {
-                console.error('Error parsing URL for initial difficulty:', e);
-            }
-        }
 
         sendJobToWS(ws)
         global.totalMiners += 1;
@@ -364,11 +277,6 @@ const shutdownMiningService = () => {
         gwss.close();
         gwss = null;
     }
-    
-    for (const worker of workerPool) {
-        worker.terminate();
-    }
-    workerPool = [];
     
     console.log('Mining service shutdown complete.');
 };

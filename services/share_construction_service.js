@@ -69,51 +69,6 @@ function verifyHamiltonianCycle(graph, path) {
     return true;
 }
 
-function verifyHamiltonianCycle_V3(graph, path) {
-    const n = graph.length;
-
-    if (path.length !== n) {
-        console.log("V3: Path size doesn't match graph size", { pathLength: path.length, graphSize: n });
-        return false;
-    }
-
-    if (path.length === 0) {
-        console.log("V3: Path is empty");
-        return false;
-    }
-
-    if (path[0] !== 0) {
-        console.log("V3: First vertex must be 0", { firstVertex: path[0] });
-        return false;
-    }
-
-    const USHRT_MAX = 65535;
-    if (path.includes(USHRT_MAX)) {
-        console.log("V3: Path contains USHRT_MAX values");
-        return false;
-    }
-
-    const verticesInPath = new Set(path);
-    if (verticesInPath.size !== n) {
-        console.log("V3: Path doesn't contain all vertices exactly once", { uniqueVertices: verticesInPath.size, expectedSize: n });
-        return false;
-    }
-
-    for (let i = 1; i < n; i++) {
-        if (!graph[path[i - 1]][path[i]]) {
-            console.log("V3: No edge exists", { from: path[i - 1], to: path[i], position: i });
-            return false;
-        }
-    }
-
-    if (!graph[path[n - 1]][path[0]]) {
-        console.log("V3: No final edge from last to first vertex", { from: path[n - 1], to: path[0] });
-        return false;
-    }
-
-    return true;
-}
-
 function verifyHamiltonianCycle_V3_withRestrict(graph, path) {
     const n = graph.length;
 
@@ -154,22 +109,24 @@ function verifyHamiltonianCycle_V3_withRestrict(graph, path) {
     // NEW UPDATE: if there is  i<j and  graph[path[i-1]][path[j]] && graph[path[i]][path[j+1]] are connected and path[i]>path[j]，This is an invalid path
     // THIS POOL IS FOR THE NEXT UPDATE
     // 2-opt verification: ensure the path is in the ground state
-    for (let i = 0; i < n - 1; ++i) {
-        for (let j = i + 1; j < n; ++j) {
-            // The edges (path[i-1], path[i]), (path[j], path[j+1]) must exist
-            const i_next = (i + 1) % n;
-            const j_next = (j + 1) % n;
 
-            // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected
-            if (graph[path[i]][path[j]] && graph[path[i_next]][path[j_next]]) {
-                // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected, and path[i]>path[j], then this is an invalid path
-                if (path[j] < path[i_next]) {
-                    console.log("V3: Found non-ground-state path", { i, j, path_i: path[i], path_j: path[j] });
-                    return false;
-                }
-            }
-        }
-    }
+    // Allow the pool to work for now uncomment or add timestamp for hardfork
+    // for (let i = 0; i < n - 1; ++i) {
+    //     for (let j = i + 1; j < n; ++j) {
+    //         // The edges (path[i-1], path[i]), (path[j], path[j+1]) must exist
+    //         const i_next = (i + 1) % n;
+    //         const j_next = (j + 1) % n;
+
+    //         // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected
+    //         if (graph[path[i]][path[j]] && graph[path[i_next]][path[j_next]]) {
+    //             // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected, and path[i]>path[j], then this is an invalid path
+    //             if (path[j] < path[i_next]) {
+    //                 console.log("V3: Found non-ground-state path", { i, j, path_i: path[i], path_j: path[j] });
+    //                 return false;
+    //             }
+    //         }
+    //     }
+    // }
 
     if (!graph[path[n - 1]][path[0]]) {
         console.log("V3: No final edge from last to first vertex", { from: path[n - 1], to: path[0] });
@@ -275,43 +232,11 @@ function constructShareV2(blockData, nonce, path) {
     const worker_grid_size = getWorkerGridSize(hash1);
     const queen_bee_grid_size = getQueenBeeGridSize(worker_grid_size);
 
-    console.log("DEBUG V3: hash1:", hash1);
-    console.log("DEBUG V3: worker_grid_size:", worker_grid_size, "queen_bee_grid_size:", queen_bee_grid_size);
-    console.log("DEBUG V3: path length:", path.length);
-
     const pathBuffer = Buffer.from(path, 'hex');
     const workerSolution = parsePathToArray(pathBuffer, 0, worker_grid_size);
     const queenBeeSolution = parsePathToArray(pathBuffer, worker_grid_size * 2, queen_bee_grid_size);
 
-    console.log("DEBUG V3: workerSolution length:", workerSolution.length, "first 4:", workerSolution.slice(0,4));
-    console.log("DEBUG V3: queenBeeSolution length:", queenBeeSolution.length, "first 4:", queenBeeSolution.slice(0,4));
-
-    console.log("GRAPH DEBUG: About to generate worker graph with:", {
-        hash1,
-        worker_grid_size,
-        percentage: 500
-    });
-    
     const workerGraph = addon.generateGraphV2(hash1, worker_grid_size, 500);
-    
-    console.log("GRAPH DEBUG: Generated worker graph, checking first few edges:");
-    for (let i = 0; i < Math.min(10, worker_grid_size); i++) {
-        for (let j = i + 1; j < Math.min(10, worker_grid_size); j++) {
-            console.log(`GRAPH DEBUG: Edge [${i}][${j}] = ${workerGraph[i][j]}`);
-        }
-    }
-    
-    console.log("GRAPH DEBUG: Verifying worker path edges:");
-    for (let i = 1; i < Math.min(10, workerSolution.length); i++) {
-        const from = workerSolution[i-1];
-        const to = workerSolution[i];
-        const edgeExists = workerGraph[from][to];
-        console.log(`GRAPH DEBUG: Worker path edge [${from}]->[${to}] exists: ${edgeExists}`);
-        if (!edgeExists) {
-            console.log(`GRAPH DEBUG: MISSING EDGE FOUND AT POSITION ${i}`);
-            break;
-        }
-    }
     
     const workerValid = verifyHamiltonianCycle_V3_withRestrict(workerGraph, workerSolution);
     if (!workerValid) {
