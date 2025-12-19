@@ -109,24 +109,26 @@ function verifyHamiltonianCycle_V3_withRestrict(graph, path) {
     // NEW UPDATE: if there is  i<j and  graph[path[i-1]][path[j]] && graph[path[i]][path[j+1]] are connected and path[i]>path[j]，This is an invalid path
     // THIS POOL IS FOR THE NEXT UPDATE
     // 2-opt verification: ensure the path is in the ground state
+    // Allow the pool to work for now
+    // TODO: Remove this timestamp check after 1766797200 has passed (hardfork complete)
+    if (Math.floor(Date.now() / 1000) >= 1766797200) {
+        for (let i = 0; i < n - 1; ++i) {
+            for (let j = i + 1; j < n; ++j) {
+                // The edges (path[i-1], path[i]), (path[j], path[j+1]) must exist
+                const i_next = (i + 1) % n;
+                const j_next = (j + 1) % n;
 
-    // Allow the pool to work for now uncomment or add timestamp for hardfork
-    // for (let i = 0; i < n - 1; ++i) {
-    //     for (let j = i + 1; j < n; ++j) {
-    //         // The edges (path[i-1], path[i]), (path[j], path[j+1]) must exist
-    //         const i_next = (i + 1) % n;
-    //         const j_next = (j + 1) % n;
-
-    //         // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected
-    //         if (graph[path[i]][path[j]] && graph[path[i_next]][path[j_next]]) {
-    //             // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected, and path[i]>path[j], then this is an invalid path
-    //             if (path[j] < path[i_next]) {
-    //                 console.log("V3: Found non-ground-state path", { i, j, path_i: path[i], path_j: path[j] });
-    //                 return false;
-    //             }
-    //         }
-    //     }
-    // }
+                // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected
+                if (graph[path[i]][path[j]] && graph[path[i_next]][path[j_next]]) {
+                    // if the new edges (path[i], path[j]), (path[i_next], path[j_next]) are connected, and path[i]>path[j], then this is an invalid path
+                    if (path[j] < path[i_next]) {
+                        console.log("V3: Found non-ground-state path", { i, j, path_i: path[i], path_j: path[j] });
+                        return false;
+                    }
+                }
+            }
+        }
+    }
 
     if (!graph[path[n - 1]][path[0]]) {
         console.log("V3: No final edge from last to first vertex", { from: path[n - 1], to: path[0] });
