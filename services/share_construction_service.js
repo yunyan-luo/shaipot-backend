@@ -1,4 +1,5 @@
 const BN = require('bn.js');
+const { nBitsToTarget } = require('./nbits_service');
 
 function extractBlockHexToNBits(blockData) {
     const { blockhex, nbits } = blockData;
@@ -12,20 +13,25 @@ function extractBlockHexToNBits(blockData) {
     return blockhex.slice(0, nbitsIndex + nbitsLE.length);
 }
 
-function adjustTargetForDifficulty(difficulty) {
+function adjustTargetForDifficulty(difficulty, networkNBits) {
     const baseTarget = new BN('1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 16);
+    const networkTarget = nBitsToTarget(parseInt(networkNBits, 16));
     
-    const adjustedTarget = baseTarget.div(new BN(Math.round(difficulty)));
+    let adjustedTarget = baseTarget.div(new BN(Math.round(difficulty)));
     if (adjustedTarget.gt(baseTarget)) {
-        return baseTarget.toString(16).padStart(64, '0');
+        adjustedTarget = baseTarget;
+    }
+    
+    if (adjustedTarget.gt(networkTarget)) {
+        adjustedTarget = networkTarget;
     }
 
     return adjustedTarget.toString(16).padStart(64, '0');
 }
 
-const generateJob = (ws, block_data) => {
+const generateJob = (ws, block_data, networkNBits) => {
     const jobId = Math.floor(Math.random() * 1000000).toString();
-    const adjustedTarget = adjustTargetForDifficulty(ws.difficulty);
+    const adjustedTarget = adjustTargetForDifficulty(ws.difficulty, networkNBits);
     return {
         jobId,
         data: block_data,

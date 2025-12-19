@@ -31,7 +31,7 @@ const getIpAddress = (ws) => {
 
 const sendJobToWS = (ws) => {
     if (ws.readyState === ws.OPEN) {
-        const job = generateJob(ws, block_data);
+        const job = generateJob(ws, block_data, current_raw_block.nbits);
         
         if (!ws.jobBuffer) {
             ws.jobBuffer = [];
