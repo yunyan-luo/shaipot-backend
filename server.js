@@ -105,6 +105,7 @@ app.get('/recent-shares', async (req, res) => {
 });
 
 let httpServer = null;
+let isShuttingDown = false;
 
 httpServer = app.listen(PORT, async () => {
     console.log(`Web server is running on http://localhost:${PORT}`);
@@ -112,6 +113,11 @@ httpServer = app.listen(PORT, async () => {
 });
 
 const gracefulShutdown = async (signal) => {
+    if (isShuttingDown) {
+        return;
+    }
+    isShuttingDown = true;
+    
     console.log(`\n${signal} received. Starting graceful shutdown...`);
     
     shutdownShaicoinService();
