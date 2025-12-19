@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <vector>
 #include <set>
+#include <ctime>
 #include <openssl/sha.h>
 
 inline uint64_t libstdcpp_uniform_u64_ab(uint64_t a, uint64_t b, std::mt19937_64& rng) {
@@ -241,19 +242,19 @@ bool verifyHamiltonianCycleV3WithRestrict(const std::vector<std::vector<bool>>& 
     }
     
     // 2-opt verification: ensure the path is in the ground state
-    // THIS POOL IS FOR THE NEXT UPDATE
-    // Allow the pool to work for now uncomment or add timestamp for hardfork
-    // for (size_t i = 0; i < n - 1; ++i) {
-    //     for (size_t j = i + 1; j < n; ++j) {
-    //         size_t i_next = (i + 1) % n;
-    //         size_t j_next = (j + 1) % n;
-    //         if (graph[path[i]][path[j]] && graph[path[i_next]][path[j_next]]) {
-    //             if (path[j] < path[i_next]) {
-    //                 return false;
-    //             }
-    //         }
-    //     }
-    // }
+    if (std::time(nullptr) >= 1766797200) {
+        for (size_t i = 0; i < n - 1; ++i) {
+            for (size_t j = i + 1; j < n; ++j) {
+                size_t i_next = (i + 1) % n;
+                size_t j_next = (j + 1) % n;
+                if (graph[path[i]][path[j]] && graph[path[i_next]][path[j_next]]) {
+                    if (path[j] < path[i_next]) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
     
     if (!graph[path[n - 1]][path[0]]) return false;
     
