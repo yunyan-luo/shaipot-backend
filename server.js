@@ -94,7 +94,8 @@ app.get('/miner', async (req, res) => {
 app.get('/recent-shares', async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 20;
-        const shares = await getRecentShares(limit);
+        const address = req.query.address;
+        const shares = await getRecentShares(limit, address);
         res.json(shares);
     } catch (error) {
         console.error('Error retrieving recent shares:', error);
