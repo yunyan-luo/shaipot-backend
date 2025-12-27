@@ -1,11 +1,15 @@
 const axios = require('axios');
 
 const {
-    distributeRewards,
+    calculateRewards,
     isTransactionProcessed,
     markTransactionAsProcessed,
     getMinersWithBalanceAbove,
-    updateMinerBalance
+    updateMinerBalance,
+    updateMinerImmatureBalance,
+    saveBlockRewards,
+    getBlockRewards,
+    updateBlockRewardStatus
 } = require("./db_service")
 
 const config = require("../config.json")
@@ -91,7 +95,6 @@ async function getMinerTransactions(minerAddress, wallet = null, batchSize = 100
         const minerTransactions = transactions
             .filter(tx => {
                 return tx.address === minerAddress
-                && tx.confirmations > 100
                 && tx.amount > 0
             })
             .map(tx => ({
@@ -124,10 +127,39 @@ const trackAndDistribute = async (minerAddress, wallet = null) => {
         }
 
         for (const tx of transactions) {
-            //console.log(`Processing transaction ${tx.txid} for miner ${minerAddress}. Allocating reward of ${tx.amountInSatoshis}`);
-            const data = await getBlockTarget(tx.blockhash)
-            await markTransactionAsProcessed(tx.txid)
-            await distributeRewards(tx.amountInSatoshis, `0x${data.blockTarget}`, data.time);
+            const blockRewards = await getBlockRewards(tx.txid);
+
+            if (!blockRewards) {
+                const data = await getBlockTarget(tx.blockhash)
+                const rewards = await calculateRewards(tx.amountInSatoshis, `0x${data.blockTarget}`, data.time);
+                
+                const isMatured = tx.confirmations > 100;
+                await saveBlockRewards(tx.txid, rewards, isMatured);
+                
+                for (const minerId in rewards) {
+                    if (isMatured) {
+                        await updateMinerBalance(minerId, rewards[minerId]);
+                    } else {
+                        await updateMinerImmatureBalance(minerId, rewards[minerId]);
+                    }
+                }
+
+                if (isMatured) {
+                    await markTransactionAsProcessed(tx.txid)
+                }
+            } else {
+                if (!blockRewards.isMatured && tx.confirmations > 100) {
+                     await updateBlockRewardStatus(tx.txid, true);
+                     
+                     for (const minerId in blockRewards.rewards) {
+                         const amount = blockRewards.rewards[minerId];
+                         await updateMinerImmatureBalance(minerId, -amount);
+                         await updateMinerBalance(minerId, amount);
+                     }
+                     
+                     await markTransactionAsProcessed(tx.txid)
+                }
+            }
         }
 
     } catch (error) {

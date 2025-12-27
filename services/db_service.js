@@ -234,7 +234,7 @@ const calculatePoolHashrate = async (minerId = null, batchSize = 1000) => {
     return (totalWork / timeDiff);
 };
 
-const distributeRewards = async (rewardAmount, blockNonce, blockTime) => {
+const calculateRewards = async (rewardAmount, blockNonce, blockTime) => {
     try {
         const blockDifficulty = getDifficultyForShare(blockNonce);
         const maxCumulativeDifficulty = 2 * blockDifficulty;
@@ -281,7 +281,7 @@ const distributeRewards = async (rewardAmount, blockNonce, blockTime) => {
         }
 
         if (Object.keys(minerShareCounts).length === 0) {
-            return;
+            return {};
         }
 
         const totalReward = BigInt(rewardAmount);
@@ -300,19 +300,90 @@ const distributeRewards = async (rewardAmount, blockNonce, blockTime) => {
             // and just collect a 0.1% fee
             //
             const minerReward = (totalReward * minerDifficulty) / totalDifficulty;
-            minerRewards[minerId] = minerReward;
+            minerRewards[minerId] = Number(minerReward);
             totalDistributed += minerReward;
         }
 
-        for (const minerId in minerRewards) {
-            const minerReward = Number(minerRewards[minerId]);
-            //console.log(`Updated ${minerId} with ${minerReward}`)
-            await updateMinerBalance(minerId, minerReward);
-        }
+        return minerRewards;
     } catch (error) {
-        console.error("Error distributing rewards:", error);
+        console.error("Error calculating rewards:", error);
+        return {};
     }
 };
+
+const updateMinerImmatureBalance = async (minerId, amount) => {
+    try {
+        if (!minerId || amount == null) {
+            throw new Error("Invalid minerId or amount");
+        }
+
+        const minersCollection = db.collection('miners');
+        
+        if (amount === 0) {
+            await minersCollection.updateOne(
+                { minerId },
+                { $set: { immatureBalance: 0 } },
+                { upsert: true }
+            );
+        } else {
+            await minersCollection.updateOne(
+                { minerId },
+                { $inc: { immatureBalance: amount } },
+                { upsert: true }
+            );
+        }
+
+    } catch (error) {
+        console.error("Error updating miner immature balance:", error);
+    }
+};
+
+const getMinerImmatureBalance = async (minerId) => {
+    try {
+        const minersCollection = db.collection('miners');
+        const miner = await minersCollection.findOne({ minerId });
+        return miner ? (miner.immatureBalance || 0) : 0;
+    } catch (error) {
+        console.error("Error retrieving miner immature balance:", error);
+        return 0;
+    }
+};
+
+const saveBlockRewards = async (txid, rewards, isMatured) => {
+    try {
+        const collection = db.collection('block_rewards');
+        await collection.insertOne({
+            txid,
+            rewards,
+            isMatured,
+            createdAt: new Date()
+        });
+    } catch (error) {
+        if (error.code !== 11000) {
+             console.error("Error saving block rewards:", error);
+        }
+    }
+};
+
+const getBlockRewards = async (txid) => {
+    try {
+        const collection = db.collection('block_rewards');
+        return await collection.findOne({ txid });
+    } catch (error) {
+        console.error("Error getting block rewards:", error);
+        return null;
+    }
+};
+
+const updateBlockRewardStatus = async (txid, isMatured) => {
+    try {
+        const collection = db.collection('block_rewards');
+        await collection.updateOne({ txid }, { $set: { isMatured } });
+    } catch (error) {
+        console.error("Error updating block reward status:", error);
+    }
+};
+
 
 const getBannedIps = async () => {
     try {
@@ -351,11 +422,17 @@ module.exports = {
     initDB,
     shutdownDB,
     saveShare,
-    distributeRewards,
+    calculateRewards,
     updateMinerBalance,
+    updateMinerImmatureBalance,
     getMinerBalance,
+    getMinerImmatureBalance,
     getMinersWithBalanceAbove,
     getAllMinersWithBalance,
+
+    saveBlockRewards,
+    getBlockRewards,
+    updateBlockRewardStatus,
 
     calculatePoolHashrate,
     getRecentShares,

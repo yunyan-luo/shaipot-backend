@@ -6,7 +6,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { startMiningService, shutdownMiningService } = require('./services/mining_service');
 const { shutdownShaicoinService, getRecentBlocks } = require('./services/shaicoin_service');
-const { calculatePoolHashrate, getMinerBalance, getRecentShares, shutdownDB } = require('./services/db_service');
+const { calculatePoolHashrate, getMinerBalance, getMinerImmatureBalance, getRecentShares, shutdownDB } = require('./services/db_service');
 const { withdraw_threshold, fee_percentage_outof1000, pool_port, web_port, pool_mining_address, pool_connection } = require('./config.json')
 const app = express();
 const PORT = process.env.PORT || web_port;
@@ -81,7 +81,8 @@ app.get('/miner', async (req, res) => {
             const hashRate = await calculatePoolHashrate(address);
             res.json({
                 hashrate: `${(hashRate).toFixed(2)} H/s`,
-                currentReward: `${(await getMinerBalance(address) / 100000000).toFixed(8)} SHA`
+                currentReward: `${(await getMinerBalance(address) / 100000000).toFixed(8)} SHA`,
+                immatureReward: `${(await getMinerImmatureBalance(address) / 100000000).toFixed(8)} SHA`
             });
         } else {
             res.status(404).send();

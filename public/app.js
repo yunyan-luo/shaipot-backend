@@ -728,11 +728,15 @@ class MiningPoolDashboard {
     displayMinerData(data) {
         const hashrateElement = document.getElementById('miner-hashrate');
         const rewardElement = document.getElementById('miner-reward');
+        const immatureRewardElement = document.getElementById('miner-immature-reward');
         const resultsContainer = document.getElementById('miner-data');
 
         if (hashrateElement && rewardElement && resultsContainer) {
             hashrateElement.textContent = DataFormatter.formatHashrate(data.hashrate);
             rewardElement.textContent = DataFormatter.formatReward(data.currentReward);
+            if (immatureRewardElement) {
+                immatureRewardElement.textContent = DataFormatter.formatReward(data.immatureReward);
+            }
             
             AnimationUtils.slideIn(resultsContainer);
             
