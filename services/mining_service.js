@@ -220,7 +220,7 @@ const startMiningService = async (port) => {
 
                     // Calculate difficulty = BaseTarget / UserTarget
                     // BaseTarget is FFFF... (full range)
-                    const diff1Target = new BN('1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 16);
+                    const diff1Target = new BN('007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 16);
                     
                     let newDiff = diff1Target.div(userTargetBN).toNumber();
                     if (newDiff < 1) newDiff = 1;
